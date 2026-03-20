@@ -7,7 +7,7 @@ import axios from 'axios';
 export class InstagramService {
   private readonly logger = new Logger(InstagramService.name);
   private readonly proxyApiSecret = process.env.PROXY_API_SECRET || '';
-  private readonly proxyInstagramSendUrl = 'https://rubikon-backend-app-7d88586fd749.herokuapp.com/proxy/instagram/send';
+  private readonly proxyInstagramSendUrl = 'https://rubikon-backend-app-7d88586fd749.herokuapp.com/proxy/mebelka/instagram/send';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -26,9 +26,11 @@ export class InstagramService {
 
               const text = event.message?.text || event.postback?.title;
               if (!text) continue; // Skip non-text events for now
-              
-              this.logger.log(`Received message from [${senderId}]: ${text}`);
-              
+
+              const senderProfile = event._senderProfile;
+
+              this.logger.log(`Received message from [${senderId}] ${senderProfile?.username || ''}: ${text}`);
+
               // Ensure lead exists
               let lead = await this.prisma.lead.findUnique({
                 where: { instagram_id: senderId }
@@ -37,10 +39,20 @@ export class InstagramService {
               if (!lead) {
                 lead = await this.prisma.lead.create({
                   data: {
-                    instagram_id: senderId
+                    instagram_id: senderId,
+                    instagram_name: senderProfile?.name || null,
+                    instagram_username: senderProfile?.username || null,
                   }
                 });
                 this.logger.log(`Створено новий лід ${lead.id} для instagram_id ${senderId}`);
+              } else if (senderProfile && (!lead.instagram_username || !lead.instagram_name)) {
+                lead = await this.prisma.lead.update({
+                  where: { id: lead.id },
+                  data: {
+                    instagram_name: senderProfile.name || lead.instagram_name,
+                    instagram_username: senderProfile.username || lead.instagram_username,
+                  }
+                });
               }
 
               // Reset any pending reminders when user replies

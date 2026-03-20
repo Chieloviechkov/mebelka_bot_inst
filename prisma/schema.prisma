@@ -13,6 +13,8 @@ datasource db {
 model Lead {
   id              Int       @id @default(autoincrement())
   instagram_id    String    @unique
+  instagram_name  String?
+  instagram_username String?
   type            String?   // table/wardrobe
   dimensions      String?
   style           String?
