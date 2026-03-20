@@ -61,11 +61,15 @@ export class InstagramService {
                 data: { status: 'cancelled' }
               });
 
-              // Process text via AI Assistant
-              const botReply = await this.aiAssistant.processUserMessage(lead.id, text);
+              // Process text via AI Assistant (disabled while OpenAI quota is empty)
+              // const botReply = await this.aiAssistant.processUserMessage(lead.id, text);
+              // await this.sendMessage(senderId, botReply);
 
-              // Send message back via Instagram Graph API
-              await this.sendMessage(senderId, botReply);
+              // Save message without AI processing
+              await this.prisma.message.create({
+                data: { text, sender_id: senderId, role: 'user', lead_id: lead.id }
+              });
+              this.logger.log(`Message saved for lead ${lead.id}`);
 
               // Create a reminder for 24 hours from now
               const reminderTime = new Date();
