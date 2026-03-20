@@ -10,6 +10,7 @@ RUN npm ci
 COPY prisma ./prisma
 RUN npx prisma generate
 
+# Cache bust v2
 COPY . .
 RUN npm run build
 
