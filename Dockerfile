@@ -8,11 +8,10 @@ COPY package*.json ./
 RUN npm ci
 
 COPY prisma ./prisma
-RUN npx prisma generate
+RUN npx prisma generate && rm -f prisma.config.ts
 
-# Cache bust v2
 COPY . .
-RUN npm run build
+RUN rm -f prisma.config.ts && npm run build
 
 EXPOSE ${PORT:-3000}
 
