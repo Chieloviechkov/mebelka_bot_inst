@@ -35,6 +35,9 @@ model Lead {
   instagram_id       String       @unique
   instagram_name     String?
   instagram_username String?
+  phone              String?
+  location           String?
+  has_project        Boolean?
   type               String?
   dimensions         String?
   style              String?

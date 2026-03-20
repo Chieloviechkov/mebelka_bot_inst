@@ -29,11 +29,14 @@ export class QualificationService {
       this.logger.log(`Extracted params for lead ${leadId}: ${JSON.stringify(params)}`);
 
       const updateData: any = {};
-      const paramKeys = ['type', 'dimensions', 'style', 'materials', 'budget', 'price_per_sqm', 'timeline', 'wishes'];
-      for (const key of paramKeys) {
+      const stringKeys = ['type', 'dimensions', 'style', 'materials', 'budget', 'price_per_sqm', 'timeline', 'wishes', 'phone', 'location'];
+      for (const key of stringKeys) {
         if (params[key] && typeof params[key] === 'string' && params[key].trim().length > 0) {
           updateData[key] = params[key].trim();
         }
+      }
+      if (params.has_project !== undefined) {
+        updateData.has_project = !!params.has_project;
       }
 
       if (Object.keys(updateData).length === 0) return;
