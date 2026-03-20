@@ -6,7 +6,8 @@ import axios from 'axios';
 @Injectable()
 export class InstagramService {
   private readonly logger = new Logger(InstagramService.name);
-  private readonly pageAccessToken = process.env.META_PAGE_ACCESS_TOKEN || 'your_page_access_token';
+  private readonly proxyApiSecret = process.env.PROXY_API_SECRET || '';
+  private readonly proxyInstagramSendUrl = 'https://rubikon-backend-app-7d88586fd749.herokuapp.com/proxy/instagram/send';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -74,17 +75,19 @@ export class InstagramService {
     }
   }
 
-  private async sendMessage(recipientId: string, text: string) {
+  async sendMessage(recipientId: string, text: string) {
     try {
-      const url = `https://graph.facebook.com/v20.0/me/messages?access_token=${this.pageAccessToken}`;
-      
-      const payload = {
-        recipient: { id: recipientId },
-        message: { text: text }
-      };
-
-      await axios.post(url, payload);
-      this.logger.log(`Sent message to ${recipientId}:\n${text}`);
+      const response = await axios.post(
+        this.proxyInstagramSendUrl,
+        { recipientId, text },
+        {
+          headers: {
+            Authorization: `Bearer ${this.proxyApiSecret}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      this.logger.log(`Sent message to ${recipientId} via proxy, messageId: ${response.data?.messageId}`);
     } catch (error: any) {
       this.logger.error(`Error sending message to ${recipientId}: ${JSON.stringify(error.response?.data || error.message)}`);
     }

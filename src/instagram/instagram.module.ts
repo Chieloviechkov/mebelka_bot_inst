@@ -6,6 +6,7 @@ import { AiAssistantModule } from '../ai-assistant/ai-assistant.module';
 @Module({
   imports: [AiAssistantModule],
   providers: [InstagramService],
-  controllers: [InstagramController]
+  controllers: [InstagramController],
+  exports: [InstagramService],
 })
 export class InstagramModule {}
