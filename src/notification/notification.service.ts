@@ -26,10 +26,10 @@ export class NotificationService implements OnModuleInit {
       const existing = await this.prisma.manager.findUnique({ where: { telegram_id: telegramId } });
       if (!existing) {
         await this.prisma.manager.create({ data: { telegram_id: telegramId, name } });
-        await ctx.reply(`Вы зарегистрированы как менеджер: ${name}. Вы будете получать уведомления о новых лидах.`);
-        this.logger.log(`Зарегистрирован менеджер: ${name} (${telegramId})`);
+        await ctx.reply(`Вас зареєстровано як менеджера: ${name}. Ви будете отримувати сповіщення про нових лідів.`);
+        this.logger.log(`Зареєстровано менеджера: ${name} (${telegramId})`);
       } else {
-        await ctx.reply(`Вы уже зарегистрированы как менеджер. Вы получаете уведомления о новых лидах.`);
+        await ctx.reply(`Ви вже зареєстровані як менеджер. Ви отримуєте сповіщення про нових лідів.`);
       }
     });
 
