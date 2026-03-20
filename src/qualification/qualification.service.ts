@@ -7,15 +7,22 @@ import { LeadStatus } from '@prisma/client';
 export class QualificationService {
   private readonly logger = new Logger(QualificationService.name);
 
-  private readonly MIN_BUDGET = parseInt(process.env.MIN_BUDGET_UAH || '5000');
-  private readonly MIN_PRICE_PER_SQM = parseInt(process.env.MIN_PRICE_PER_SQM || '2000');
-  private readonly MAX_PRICE_PER_SQM = parseInt(process.env.MAX_PRICE_PER_SQM || '50000');
-  private readonly MIN_TIMELINE_DAYS = parseInt(process.env.MIN_TIMELINE_DAYS || '7');
+  private readonly DEFAULTS: Record<string, number> = {
+    MIN_BUDGET_UAH: 5000,
+    MIN_PRICE_PER_SQM: 2000,
+    MAX_PRICE_PER_SQM: 50000,
+    MIN_TIMELINE_DAYS: 7,
+  };
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
   ) {}
+
+  private async getSetting(key: string): Promise<number> {
+    const setting = await this.prisma.setting.findUnique({ where: { key } });
+    return setting ? parseInt(setting.value) : (this.DEFAULTS[key] || 0);
+  }
 
   async updateLeadParametersAndQualify(leadId: number, params: any) {
     try {
@@ -50,18 +57,23 @@ export class QualificationService {
         const pricePerSqm = this.extractNumber(lead.price_per_sqm || '');
         const timelineDays = this.estimateTimelineDays(lead.timeline || '');
 
+        const minBudget = await this.getSetting('MIN_BUDGET_UAH');
+        const minPriceSqm = await this.getSetting('MIN_PRICE_PER_SQM');
+        const maxPriceSqm = await this.getSetting('MAX_PRICE_PER_SQM');
+        const minTimeline = await this.getSetting('MIN_TIMELINE_DAYS');
+
         if (this.isSpam(lead.budget || '')) {
           newStatus = LeadStatus.LowPotential;
           reason = 'Підозра на спам';
-        } else if (budgetNum > 0 && budgetNum < this.MIN_BUDGET) {
+        } else if (budgetNum > 0 && budgetNum < minBudget) {
           newStatus = LeadStatus.LowPotential;
-          reason = `Бюджет ${budgetNum} нижче мінімуму ${this.MIN_BUDGET}`;
-        } else if (pricePerSqm > 0 && (pricePerSqm < this.MIN_PRICE_PER_SQM || pricePerSqm > this.MAX_PRICE_PER_SQM)) {
+          reason = `Бюджет ${budgetNum} нижче мінімуму ${minBudget}`;
+        } else if (pricePerSqm > 0 && (pricePerSqm < minPriceSqm || pricePerSqm > maxPriceSqm)) {
           newStatus = LeadStatus.LowPotential;
-          reason = `Ціна за м² (${pricePerSqm}) поза діапазоном`;
-        } else if (timelineDays > 0 && timelineDays < this.MIN_TIMELINE_DAYS) {
+          reason = `Ціна за м² (${pricePerSqm}) поза діапазоном ${minPriceSqm}-${maxPriceSqm}`;
+        } else if (timelineDays > 0 && timelineDays < minTimeline) {
           newStatus = LeadStatus.LowPotential;
-          reason = `Термін ${timelineDays} днів нереалістичний`;
+          reason = `Термін ${timelineDays} днів нереалістичний (мін. ${minTimeline})`;
         } else {
           newStatus = LeadStatus.Perspektive;
           reason = 'Усі параметри зібрані, бюджет адекватний';

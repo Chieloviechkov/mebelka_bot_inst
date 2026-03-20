@@ -208,6 +208,39 @@ export class AdminController {
     return this.prisma.manager.update({ where: { id }, data: { role } });
   }
 
+  // ─── SETTINGS ───────────────────────────────────────
+
+  @Get('settings')
+  async getSettings() {
+    const settings = await this.prisma.setting.findMany();
+    const defaults: Record<string, string> = {
+      MIN_BUDGET_UAH: '5000',
+      MIN_PRICE_PER_SQM: '2000',
+      MAX_PRICE_PER_SQM: '50000',
+      MIN_TIMELINE_DAYS: '7',
+    };
+    const result: Record<string, string> = { ...defaults };
+    for (const s of settings) result[s.key] = s.value;
+    return result;
+  }
+
+  @Patch('settings')
+  async updateSettings(@Body() body: Record<string, string>) {
+    const allowed = ['MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM', 'MIN_TIMELINE_DAYS'];
+    const updated: Record<string, string> = {};
+    for (const key of allowed) {
+      if (body[key] !== undefined) {
+        await this.prisma.setting.upsert({
+          where: { key },
+          update: { value: body[key] },
+          create: { key, value: body[key] },
+        });
+        updated[key] = body[key];
+      }
+    }
+    return updated;
+  }
+
   // ─── ANALYTICS ──────────────────────────────────────
 
   @Get('analytics')

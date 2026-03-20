@@ -88,6 +88,12 @@ model LeadManager {
   @@unique([lead_id, manager_id])
 }
 
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+}
+
 model Note {
   id        Int      @id @default(autoincrement())
   text      String
