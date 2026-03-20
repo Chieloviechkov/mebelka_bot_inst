@@ -28,4 +28,4 @@ COPY --from=builder /app/prisma ./prisma
 
 EXPOSE ${PORT:-3000}
 
-CMD ["sh", "-c", "echo \"DELETE FROM _prisma_migrations WHERE migration_name = '0_init';\" | npx prisma db execute --stdin 2>/dev/null; npx prisma migrate deploy && node dist/main"]
+CMD ["node", "dist/main"]
