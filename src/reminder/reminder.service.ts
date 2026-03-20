@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { InstagramService } from '../instagram/instagram.service';
+import { LeadStatus } from '@prisma/client';
 
 @Injectable()
 export class ReminderService {
@@ -18,29 +19,30 @@ export class ReminderService {
 
     try {
       const pendingReminders = await this.prisma.reminder.findMany({
-        where: {
-          status: 'pending',
-          time: {
-            lte: new Date(),
-          },
-        },
+        where: { status: 'pending', time: { lte: new Date() } },
         include: { lead: true },
       });
 
       for (const reminder of pendingReminders) {
-        if (reminder.lead.ai_status !== 'Perspektive' && reminder.lead.ai_status !== 'LowPotential') {
-          await this.instagramService.sendMessage(
-            reminder.lead.instagram_id,
-            'Добрий день! Ви ще тут? Ми готові відповісти на всі ваші питання щодо меблів!',
-          );
-
-          await this.prisma.reminder.update({
-            where: { id: reminder.id },
-            data: { status: 'sent' },
-          });
-
-          this.logger.log(`Follow up sent to lead ${reminder.lead.id}`);
+        // Skip already qualified leads
+        if (reminder.lead.status === LeadStatus.Perspektive ||
+            reminder.lead.status === LeadStatus.LowPotential ||
+            reminder.lead.status === LeadStatus.Zakryto ||
+            reminder.lead.status === LeadStatus.Vidhyleno) {
+          continue;
         }
+
+        await this.instagramService.sendMessage(
+          reminder.lead.instagram_id,
+          'Добрий день! Ви ще тут? Ми готові відповісти на всі ваші питання щодо меблів! 🪑',
+        );
+
+        await this.prisma.reminder.update({
+          where: { id: reminder.id },
+          data: { status: 'sent' },
+        });
+
+        this.logger.log(`Follow up sent to lead ${reminder.lead.id}`);
       }
     } catch (error) {
       this.logger.error('Error in reminder cron', error);

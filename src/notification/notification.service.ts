@@ -12,7 +12,7 @@ export class NotificationService implements OnModuleInit {
     if (token) {
       this.bot = new Telegraf(token);
     } else {
-      this.logger.warn('TELEGRAM_BOT_TOKEN не встановлено, сповіщення Telegram не працюватимуть.');
+      this.logger.warn('TELEGRAM_BOT_TOKEN не встановлено');
     }
   }
 
@@ -33,41 +33,57 @@ export class NotificationService implements OnModuleInit {
       }
     });
 
-    this.bot.launch().catch((err) => this.logger.error('Ошибка запуска Telegram бота', err));
-    this.logger.log('Telegram бот запущен');
+    this.bot.launch().catch((err) => this.logger.error('Помилка запуску Telegram бота', err));
+    this.logger.log('Telegram бот запущено');
   }
 
   async notifyManagersAboutLead(leadId: number) {
     if (!this.bot) return;
 
     try {
-      const lead = await this.prisma.lead.findUnique({ where: { id: leadId } });
-      const managers = await this.prisma.manager.findMany();
-
+      const lead = await this.prisma.lead.findUnique({
+        where: { id: leadId },
+        include: { leadManagers: { include: { manager: true } } },
+      });
       if (!lead) return;
 
-      const statusLabels = {
+      const statusLabels: Record<string, string> = {
+        'Novyi': '🆕 Новий',
         'Perspektive': '🔥 Перспективний',
         'NeedsClarification': '⏳ Потребує уточнення',
-        'LowPotential': '❄️ Низький потенціал'
+        'LowPotential': '❄️ Низький потенціал',
+        'VRoboti': '🔧 В роботі',
+        'DomovlenoProZamir': '📐 Домовлено про замір',
+        'OchikuyePeredoplatu': '💳 Очікує передоплату',
+        'Zakryto': '✅ Закрито',
+        'Vidhyleno': '❌ Відхилено',
       };
 
       const message = `🔥 *Новий лід пройшов кваліфікацію!*\n\n` +
         `🆔 ID: ${lead.id}\n` +
-        `📱 Instagram: ${lead.instagram_id}\n` +
+        `📱 Instagram: ${lead.instagram_username ? '@' + lead.instagram_username : lead.instagram_id}\n` +
+        `👤 Ім'я: ${lead.instagram_name || 'Не вказано'}\n` +
         `🛋 Тип: ${lead.type || 'Не вказано'}\n` +
         `📏 Розміри: ${lead.dimensions || 'Не вказано'}\n` +
         `🎨 Стиль: ${lead.style || 'Не вказано'}\n` +
+        `🪵 Матеріали: ${lead.materials || 'Не вказано'}\n` +
         `💰 Бюджет: ${lead.budget || 'Не вказано'}\n` +
         `⏳ Терміни: ${lead.timeline || 'Не вказано'}\n` +
-        `🌟 Статус: ${lead.ai_status ? (statusLabels[lead.ai_status] || lead.ai_status) : 'Не кваліфіковано'}`;
+        `✨ Побажання: ${lead.wishes || 'Немає'}\n` +
+        `🌟 Статус: ${statusLabels[lead.status] || lead.status}`;
+
+      // Prefer assigned managers, fallback to all
+      let managers = lead.leadManagers.map(lm => lm.manager);
+      if (managers.length === 0) {
+        managers = await this.prisma.manager.findMany();
+      }
 
       for (const manager of managers) {
         if (manager.telegram_id) {
           await this.bot.telegram.sendMessage(manager.telegram_id, message, { parse_mode: 'Markdown' });
         }
       }
-      this.logger.log(`Сповіщення про лід ${leadId} відправлено.`);
+      this.logger.log(`Сповіщення про лід ${leadId} відправлено ${managers.length} менеджерам`);
     } catch (error) {
       this.logger.error('Помилка при відправці сповіщень', error);
     }

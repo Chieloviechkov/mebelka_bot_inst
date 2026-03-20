@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,73 +7,109 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Lead {
-  id              Int       @id @default(autoincrement())
-  instagram_id    String    @unique
-  instagram_name  String?
-  instagram_username String?
-  type            String?   // table/wardrobe
-  dimensions      String?
-  style           String?
-  materials       String?
-  budget          String?
-  timeline        String?
-  wishes          String?
-  ai_status       AiStatus?
-  status_history  Json?
-  
-  messages        Message[]
-  notes           Note[]
-  reminders       Reminder[]
-  history         History[]
-
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+enum LeadStatus {
+  Novyi
+  NeedsClarification
+  Perspektive
+  LowPotential
+  VRoboti
+  DomovlenoProZamir
+  OchikuyePeredoplatu
+  Zakryto
+  Vidhyleno
 }
 
-enum AiStatus {
-  Perspektive
-  NeedsClarification
-  LowPotential
+enum ManagerRole {
+  manager
+  supermanager
+}
+
+enum FunnelStage {
+  Zayavka
+  KontaktMenedzhera
+  Ugoda
+}
+
+model Lead {
+  id                 Int          @id @default(autoincrement())
+  instagram_id       String       @unique
+  instagram_name     String?
+  instagram_username String?
+  type               String?
+  dimensions         String?
+  style              String?
+  materials          String?
+  budget             String?
+  price_per_sqm      String?
+  timeline           String?
+  wishes             String?
+  status             LeadStatus   @default(Novyi)
+  has_application    Boolean      @default(false)
+  status_history     Json?
+
+  messages       Message[]
+  notes          Note[]
+  reminders      Reminder[]
+  history        History[]
+  leadManagers   LeadManager[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Message {
-  id          Int      @id @default(autoincrement())
-  text        String
-  sender_id   String
-  role        String   // user/bot
-  timestamp   DateTime @default(now())
-  lead_id     Int
-  lead        Lead     @relation(fields: [lead_id], references: [id])
+  id              Int      @id @default(autoincrement())
+  text            String?
+  sender_id       String
+  role            String   // user / bot / manager
+  attachment_url  String?
+  attachment_type String?  // image, video, file, audio
+  timestamp       DateTime @default(now())
+  lead_id         Int
+  lead            Lead     @relation(fields: [lead_id], references: [id])
 }
 
 model Manager {
-  id          Int      @id @default(autoincrement())
-  telegram_id String   @unique
+  id          Int          @id @default(autoincrement())
+  telegram_id String       @unique
   name        String?
+  role        ManagerRole  @default(manager)
+  leads       LeadManager[]
+}
+
+model LeadManager {
+  id         Int      @id @default(autoincrement())
+  lead_id    Int
+  manager_id Int
+  lead       Lead     @relation(fields: [lead_id], references: [id])
+  manager    Manager  @relation(fields: [manager_id], references: [id])
+  assignedAt DateTime @default(now())
+
+  @@unique([lead_id, manager_id])
 }
 
 model Note {
-  id          Int      @id @default(autoincrement())
-  text        String
-  lead_id     Int
-  lead        Lead     @relation(fields: [lead_id], references: [id])
-  createdAt   DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  text      String
+  lead_id   Int
+  lead      Lead     @relation(fields: [lead_id], references: [id])
+  createdAt DateTime @default(now())
 }
 
 model Reminder {
-  id          Int      @id @default(autoincrement())
-  time        DateTime
-  status      String   @default("pending") // pending, sent
-  lead_id     Int
-  lead        Lead     @relation(fields: [lead_id], references: [id])
-  createdAt   DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  time      DateTime
+  status    String   @default("pending")
+  lead_id   Int
+  lead      Lead     @relation(fields: [lead_id], references: [id])
+  createdAt DateTime @default(now())
 }
 
 model History {
-  id          Int      @id @default(autoincrement())
-  action      String
-  lead_id     Int
-  lead        Lead     @relation(fields: [lead_id], references: [id])
-  createdAt   DateTime  @default(now())
+  id           Int          @id @default(autoincrement())
+  action       String
+  funnel_stage FunnelStage?
+  lead_id      Int
+  lead         Lead         @relation(fields: [lead_id], references: [id])
+  createdAt    DateTime     @default(now())
 }
