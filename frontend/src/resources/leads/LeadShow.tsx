@@ -6,7 +6,6 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
-import ImageIcon from '@mui/icons-material/Image';
 import SendIcon from '@mui/icons-material/Send';
 import NotesIcon from '@mui/icons-material/Notes';
 import HistoryIcon from '@mui/icons-material/History';
@@ -48,18 +47,9 @@ const InfoCard = ({ title, icon, children }: { title: string; icon: React.ReactN
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 
-const EditableDetailRow = ({ label, value, field, leadId, onSave }: { label: string; value?: string | null; field: string; leadId: number; onSave?: (field: string, val: string) => void }) => {
+const EditableDetailRow = ({ label, value, field, onSave }: { label: string; value?: string | null; field: string; leadId?: number; onSave?: (field: string, val: string) => void }) => {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value || '');
-  const notify = useNotify();
-
-  const handleSave = async () => {
-    try {
-      await api.patch(`${API}/leads/${leadId}/status`, { status: val }); // reuse or make generic
-    } catch { /* ignore */ }
-    setEditing(false);
-    onSave?.(field, val);
-  };
 
   if (editing) {
     return (
@@ -610,7 +600,7 @@ const LeadShowContent = () => {
 /* ------------------------------------------------------------------ */
 
 export const LeadShow = () => (
-  <Show queryOptions={{ refetchOnMount: true, staleTime: 0, cacheTime: 0 }}>
+  <Show queryOptions={{ refetchOnMount: true, staleTime: 0, gcTime: 0 }}>
     <LeadShowContent />
   </Show>
 );

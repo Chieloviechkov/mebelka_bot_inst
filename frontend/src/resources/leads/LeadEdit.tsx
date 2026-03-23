@@ -1,7 +1,7 @@
 import {
   Edit, SimpleForm, TextInput, SelectInput, BooleanInput,
   ReferenceArrayInput, SelectArrayInput, useRecordContext,
-  SaveButton, Toolbar, useRedirect, useNotify,
+  SaveButton, Toolbar,
 } from 'react-admin';
 import {
   Box, Typography, Card, CardContent, Avatar, Chip, Tab, Tabs,

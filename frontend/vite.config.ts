@@ -1,0 +1,19 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/admin': {
+        target: 'https://mebelkabotinst-production.up.railway.app',
+        changeOrigin: true,
+      },
+      '/auth': {
+        target: 'https://mebelkabotinst-production.up.railway.app',
+        changeOrigin: true,
+      },
+    },
+  },
+});

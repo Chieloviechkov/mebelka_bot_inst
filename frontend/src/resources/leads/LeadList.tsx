@@ -1,13 +1,11 @@
 import {
   List, Datagrid, DateField, SearchInput, SelectInput, DateInput,
   FunctionField, ShowButton, EditButton, TopToolbar, FilterButton,
-  useRedirect,
 } from 'react-admin';
 import { Box, Typography, Chip, Avatar, IconButton, Tooltip } from '@mui/material';
-import ChatIcon from '@mui/icons-material/Chat';
 import InstagramIcon from '@mui/icons-material/Instagram';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
-import { AI_STATUS_CHOICES, ALL_STATUS_CHOICES, getStatusConfig } from '../../utils/statusMaps';
+import { ALL_STATUS_CHOICES } from '../../utils/statusMaps';
 import { StatusChip } from '../../components/StatusChip';
 
 const leadsFilters = [

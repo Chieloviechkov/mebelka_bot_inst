@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/admin/:path*", "destination": "https://mebelkabotinst-production.up.railway.app/admin/:path*" },
+    { "source": "/auth/:path*", "destination": "https://mebelkabotinst-production.up.railway.app/auth/:path*" }
+  ]
+}
