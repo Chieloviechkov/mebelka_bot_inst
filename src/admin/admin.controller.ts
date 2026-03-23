@@ -67,9 +67,6 @@ export class AdminController {
         take: limit,
         orderBy,
         include: {
-          notes: true,
-          reminders: true,
-          history: true,
           leadManagers: { include: { manager: true } },
           _count: { select: { messages: true } },
         },
