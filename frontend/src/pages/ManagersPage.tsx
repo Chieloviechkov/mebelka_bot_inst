@@ -14,7 +14,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { usePermissions, useRedirect } from 'react-admin';
 import api from '../api';
 
-const API = import.meta.env.VITE_API_URL || '/admin';
+const API = '/admin';
 
 const ROLES: Record<string, { label: string; color: string; bg: string }> = {
   manager: { label: 'Менеджер', color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
