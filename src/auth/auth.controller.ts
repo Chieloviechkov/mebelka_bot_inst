@@ -13,11 +13,4 @@ export class AuthController {
     return this.authService.login(body.email, body.password);
   }
 
-  @Post('register')
-  async register(@Body() body: { email: string; password: string; name: string }) {
-    if (!body.email || !body.password || !body.name) {
-      throw new BadRequestException('Email, пароль та ім\'я обов\'язкові');
-    }
-    return this.authService.register(body.email, body.password, body.name);
-  }
 }
