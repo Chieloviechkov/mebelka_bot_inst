@@ -21,7 +21,7 @@ export const ChatsPage = () => {
   const [selectedLead, setSelectedLead] = useState<any>(null);
 
   useEffect(() => {
-    api.get(`${API}/leads?page=1&limit=100&sort_field=updatedAt&sort_order=desc`).then(res => {
+    api.get(`${API}/leads?page=1&limit=50&sort_field=updatedAt&sort_order=desc`).then(res => {
       const data = res.data?.data || res.data || [];
       // Only show leads that have messages
       setLeads(data.filter((l: any) => (l._count?.messages ?? 0) > 0));

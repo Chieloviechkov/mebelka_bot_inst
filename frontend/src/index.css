@@ -11,6 +11,21 @@ body {
   overflow-x: hidden;
 }
 
+/* Kill white focus outlines everywhere */
+*:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.5) !important;
+  outline-offset: -2px;
+}
+
+.recharts-wrapper *:focus,
+.recharts-wrapper *:focus-visible,
+.recharts-sector:focus,
+.recharts-sector:focus-visible,
+.recharts-pie-sector:focus-visible,
+.recharts-bar-rectangle:focus-visible {
+  outline: none !important;
+}
+
 :root {
   --primary: #6366f1;
   --primary-light: #818cf8;
