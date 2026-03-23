@@ -125,6 +125,13 @@ export const ChatsPage = () => {
 /* ─── Fullscreen chat ─── */
 
 const ChatFullscreen = ({ lead, onClose }: { lead: any; onClose: () => void }) => {
+  // Push history entry so browser back button closes the chat
+  useEffect(() => {
+    window.history.pushState({ chat: true }, '');
+    const handlePop = () => onClose();
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [onClose]);
   const [messages, setMessages] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState('');

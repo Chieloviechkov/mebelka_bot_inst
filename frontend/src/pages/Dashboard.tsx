@@ -169,7 +169,7 @@ export const Dashboard = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#1e2235" />
                   <XAxis dataKey="name" tick={{ fill: '#475569', fontSize: 11 }} axisLine={{ stroke: '#1e2235' }} tickLine={false} />
                   <YAxis tick={{ fill: '#475569', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(99,102,241,0.08)' }} />
+                  <Tooltip content={<CustomTooltip />} cursor={false} />
                   <Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
