@@ -1,7 +1,8 @@
 import {
-  Controller, Get, Post, Patch, Delete, Body, Param, Query,
+  Controller, Get, Post, Patch, Delete, Body, Param, Query, Header, Res,
   ParseIntPipe, BadRequestException, ForbiddenException, InternalServerErrorException, UseGuards, Req,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { InstagramService } from '../instagram/instagram.service';
 import { LeadStatus, FunnelStage, ManagerRole } from '@prisma/client';
@@ -31,6 +32,33 @@ export class AdminController {
   }
 
   // ─── LEADS ──────────────────────────────────────────
+
+  @Get('leads/export')
+  async exportLeadsCsv(@Req() req: any, @Res() res: Response) {
+    const user = req.user;
+    const where: any = {};
+    if (user.role === 'manager') {
+      where.leadManagers = { some: { manager_id: user.id } };
+    }
+
+    const leads = await this.prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
+
+    const columns = [
+      'id', 'instagram_name', 'instagram_username', 'phone', 'location',
+      'type', 'dimensions', 'style', 'materials', 'budget', 'timeline', 'status', 'createdAt',
+    ];
+    const escCsv = (v: any) => {
+      if (v == null) return '';
+      const s = String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = leads.map(l => columns.map(c => escCsv((l as any)[c])).join(','));
+    const csv = [columns.join(','), ...rows].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="leads.csv"');
+    res.send('\uFEFF' + csv);
+  }
 
   @Get('leads')
   async getLeads(
@@ -282,6 +310,18 @@ export class AdminController {
     return message;
   }
 
+  @Get('messages/search')
+  async searchMessages(@Query('q') q: string) {
+    if (!q || q.length < 2) return [];
+    const messages = await this.prisma.message.findMany({
+      where: { text: { contains: q, mode: 'insensitive' } },
+      orderBy: { timestamp: 'desc' },
+      take: 50,
+      include: { lead: { select: { id: true, instagram_name: true, instagram_username: true } } },
+    });
+    return messages;
+  }
+
   @Post('messages/:id/retry')
   async retryMessage(@Param('id', ParseIntPipe) id: number) {
     const message = await this.prisma.message.findUnique({ where: { id }, include: { lead: true } });
@@ -389,6 +429,18 @@ export class AdminController {
     return { ok: true };
   }
 
+  // ─── STATUS LABELS (public for all authenticated users) ─────────
+
+  @Get('status-labels')
+  async getStatusLabels() {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'STATUS_LABELS' } });
+    try {
+      return JSON.parse(setting?.value || '{}');
+    } catch {
+      return {};
+    }
+  }
+
   // ─── SETTINGS ───────────────────────────────────────
 
   @Get('settings')
@@ -404,6 +456,7 @@ export class AdminController {
       AI_ENABLED: 'false',
       COMPANY_ADDRESSES: '[{"name":"Правий берег","address":"ТЦ \\"Будинок Меблів\\" бульвар Миколи Міхновського, 23","map":"https://maps.app.goo.gl/xZaRPfUSqtc8gDHk6"},{"name":"Лівий берег","address":"ТЦ \\"Ваш Дім\\" вулиця Катерини Гандзюк, 2","map":"https://maps.app.goo.gl/bmX8wx9WZxubZFve8"},{"name":"Офіс","address":"Харківське шоссе 201/203","map":"https://maps.app.goo.gl/6SwyvAQgmQ6HZ2iV8"}]',
       AI_SYSTEM_PROMPT: '',
+      STATUS_LABELS: '{}',
     };
     const result: Record<string, string> = { ...defaults };
     for (const s of settings) result[s.key] = s.value;
@@ -417,6 +470,7 @@ export class AdminController {
     const allowed = [
       'MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM',
       'MIN_TIMELINE_DAYS', 'AI_ENABLED', 'COMPANY_ADDRESSES', 'AI_SYSTEM_PROMPT',
+      'STATUS_LABELS',
     ];
     const updated: Record<string, string> = {};
     for (const key of allowed) {

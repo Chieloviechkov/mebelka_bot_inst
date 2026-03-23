@@ -1,12 +1,21 @@
+import { useState } from 'react';
 import {
   List, Datagrid, DateField, SearchInput, SelectInput, DateInput,
   FunctionField, ShowButton, EditButton, TopToolbar, FilterButton,
+  useNotify, useRefresh, useUnselectAll, useListContext,
 } from 'react-admin';
-import { Box, Typography, Chip, Avatar, IconButton, Tooltip } from '@mui/material';
+import {
+  Box, Typography, Chip, Avatar, IconButton, Tooltip,
+  Button, Dialog, DialogTitle, DialogContent, DialogActions, List as MuiList,
+  ListItemButton, ListItemText, CircularProgress,
+} from '@mui/material';
 import InstagramIcon from '@mui/icons-material/Instagram';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { ALL_STATUS_CHOICES } from '../../utils/statusMaps';
 import { StatusChip } from '../../components/StatusChip';
+import api from '../../api';
 
 const leadsFilters = [
   <SearchInput key="q" source="q" alwaysOn placeholder="Пошук..." />,
@@ -16,14 +25,138 @@ const leadsFilters = [
     label="Статус"
     choices={ALL_STATUS_CHOICES}
   />,
+  <SelectInput
+    key="has_application"
+    source="has_application"
+    label="Заявка"
+    choices={[
+      { id: 'true', name: 'З заявкою' },
+      { id: 'false', name: 'Без заявки (тільки діалог)' },
+    ]}
+  />,
   <DateInput key="date_from" source="date_from" label="Дата від" />,
   <DateInput key="date_to" source="date_to" label="Дата до" />,
 ];
 
+const handleExportCsv = async () => {
+  try {
+    const res = await api.get('/admin/leads/export', { responseType: 'blob' });
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'leads.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch {
+    alert('Помилка експорту');
+  }
+};
+
 const LeadActions = () => (
   <TopToolbar sx={{ gap: 1 }}>
+    <Button
+      size="small"
+      startIcon={<FileDownloadIcon />}
+      onClick={handleExportCsv}
+      sx={{ color: '#94a3b8', textTransform: 'none', fontSize: '0.8rem' }}
+    >
+      Експорт CSV
+    </Button>
     <FilterButton />
   </TopToolbar>
+);
+
+const BulkAssignButton = () => {
+  const [open, setOpen] = useState(false);
+  const [managers, setManagers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const notify = useNotify();
+  const refresh = useRefresh();
+  const unselectAll = useUnselectAll('leads');
+  const { selectedIds } = useListContext();
+
+  const handleOpen = async () => {
+    setOpen(true);
+    setLoading(true);
+    try {
+      const res = await api.get('/admin/managers');
+      setManagers(res.data);
+    } catch {
+      notify('Помилка завантаження менеджерів', { type: 'error' });
+    }
+    setLoading(false);
+  };
+
+  const handleAssign = async (managerId: number) => {
+    if (!selectedIds || selectedIds.length === 0) {
+      notify('Не вибрано жодного ліда', { type: 'warning' });
+      setOpen(false);
+      return;
+    }
+
+    let success = 0;
+    let errors = 0;
+    for (const leadId of selectedIds) {
+      try {
+        await api.post(`/admin/leads/${leadId}/assign`, { manager_id: managerId });
+        success++;
+      } catch {
+        errors++;
+      }
+    }
+
+    setOpen(false);
+    if (success > 0) notify(`Менеджера призначено для ${success} лідів`, { type: 'success' });
+    if (errors > 0) notify(`${errors} помилок (можливо, вже призначено)`, { type: 'warning' });
+    unselectAll();
+    refresh();
+  };
+
+  return (
+    <>
+      <Button
+        size="small"
+        startIcon={<PersonAddIcon />}
+        onClick={handleOpen}
+        sx={{ color: '#94a3b8', textTransform: 'none' }}
+      >
+        Призначити менеджера
+      </Button>
+      <Dialog open={open} onClose={() => setOpen(false)} PaperProps={{ sx: { background: '#1a1d2e', color: '#e2e8f0', minWidth: 320 } }}>
+        <DialogTitle>Оберіть менеджера</DialogTitle>
+        <DialogContent>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={28} /></Box>
+          ) : (
+            <MuiList>
+              {managers.map((m: any) => (
+                <ListItemButton key={m.id} onClick={() => handleAssign(m.id)} sx={{ borderRadius: 1, '&:hover': { background: 'rgba(99,102,241,0.1)' } }}>
+                  <ListItemText
+                    primary={m.name || m.email}
+                    secondary={`${m.role} | ${m._count?.leads ?? 0} лідів`}
+                    primaryTypographyProps={{ sx: { color: '#e2e8f0' } }}
+                    secondaryTypographyProps={{ sx: { color: '#64748b' } }}
+                  />
+                </ListItemButton>
+              ))}
+            </MuiList>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)} sx={{ color: '#94a3b8' }}>Скасувати</Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+};
+
+const LeadBulkActions = () => (
+  <>
+    <BulkAssignButton />
+  </>
 );
 
 const EmptyLeads = () => (
@@ -48,7 +181,7 @@ export const LeadList = () => (
     sx={{ '& .RaList-main': { mt: 1 } }}
   >
     <Datagrid
-      bulkActionButtons={false}
+      bulkActionButtons={<LeadBulkActions />}
       sx={{
         '& .RaDatagrid-headerCell': {
           background: '#12151f',

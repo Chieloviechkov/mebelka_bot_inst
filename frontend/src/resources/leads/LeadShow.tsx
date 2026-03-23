@@ -3,6 +3,7 @@ import {
   Box, Typography, Card, CardContent, Chip,
   TextField as MuiTextField, Button, Avatar, IconButton,
   Dialog, DialogContent, AppBar, Toolbar as MuiToolbar, Badge,
+  Popover, Checkbox, FormControlLabel, CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
@@ -17,6 +18,7 @@ import SupervisorsIcon from '@mui/icons-material/SupervisorAccount';
 import PhoneIcon from '@mui/icons-material/Phone';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '../../api';
 import { getStatusConfig } from '../../utils/statusMaps';
@@ -454,6 +456,114 @@ const ChatDialog = ({ initialMessages, leadId, msgCount }: { initialMessages: an
 };
 
 /* ------------------------------------------------------------------ */
+/*  Managers panel with add/remove                                     */
+/* ------------------------------------------------------------------ */
+
+const ManagersPanel = ({ initialManagers, leadId }: { initialManagers: any[]; leadId: number }) => {
+  const [managers, setManagers] = useState<any[]>(initialManagers);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [allManagers, setAllManagers] = useState<any[]>([]);
+  const [loadingMgrs, setLoadingMgrs] = useState(false);
+  const [toggling, setToggling] = useState<number | null>(null);
+  const notify = useNotify();
+
+  const assignedIds = new Set(managers.map((m: any) => m.id));
+
+  const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(e.currentTarget);
+    if (allManagers.length === 0) {
+      setLoadingMgrs(true);
+      api.get(`${API}/managers`).then(res => {
+        setAllManagers(res.data || []);
+        setLoadingMgrs(false);
+      }).catch(() => setLoadingMgrs(false));
+    }
+  };
+
+  const handleToggle = async (manager: any) => {
+    setToggling(manager.id);
+    try {
+      if (assignedIds.has(manager.id)) {
+        await api.delete(`${API}/leads/${leadId}/assign/${manager.id}`);
+        setManagers(prev => prev.filter((m: any) => m.id !== manager.id));
+        notify('Менеджера знято', { type: 'success' });
+      } else {
+        await api.post(`${API}/leads/${leadId}/assign`, { manager_id: manager.id });
+        setManagers(prev => [...prev, manager]);
+        notify('Менеджера призначено', { type: 'success' });
+      }
+    } catch {
+      notify('Помилка', { type: 'error' });
+    }
+    setToggling(null);
+  };
+
+  return (
+    <Box>
+      {managers.length > 0 ? (
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
+          {managers.map((m: any) => (
+            <Chip
+              key={m.id}
+              label={m.name || m.telegram_id}
+              avatar={<Avatar sx={{ bgcolor: '#6366f1' }}>{(m.name || 'M')[0]}</Avatar>}
+              onDelete={() => handleToggle(m)}
+              sx={{ background: '#1e2235', color: '#e2e8f0', border: '1px solid #2d3158' }}
+            />
+          ))}
+        </Box>
+      ) : (
+        <Typography variant="body2" sx={{ color: '#475569', mb: 1.5 }}>Немає призначених менеджерів</Typography>
+      )}
+      <Button
+        size="small"
+        startIcon={<PersonAddIcon />}
+        onClick={handleOpen}
+        sx={{ color: '#818cf8', fontWeight: 600, '&:hover': { background: 'rgba(99,102,241,0.1)' } }}
+      >
+        Додати менеджера
+      </Button>
+      <Popover
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        PaperProps={{ sx: { background: '#1a1d2e', border: '1px solid #2d3158', borderRadius: '10px', p: 1.5, minWidth: 220 } }}
+      >
+        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: '0.08em', display: 'block', mb: 1 }}>
+          Менеджери
+        </Typography>
+        {loadingMgrs && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', my: 1 }} />}
+        {allManagers.map((m: any) => (
+          <FormControlLabel
+            key={m.id}
+            control={
+              <Checkbox
+                checked={assignedIds.has(m.id)}
+                onChange={() => handleToggle(m)}
+                disabled={toggling === m.id}
+                size="small"
+                sx={{ color: '#475569', '&.Mui-checked': { color: '#6366f1' } }}
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ color: '#e2e8f0', fontSize: '0.85rem' }}>
+                {m.name || m.email || m.telegram_id}
+              </Typography>
+            }
+            sx={{ display: 'flex', mx: 0, '&:hover': { background: 'rgba(99,102,241,0.05)', borderRadius: '6px' } }}
+          />
+        ))}
+        {!loadingMgrs && allManagers.length === 0 && (
+          <Typography variant="body2" sx={{ color: '#475569', textAlign: 'center', py: 1 }}>Немає менеджерів</Typography>
+        )}
+      </Popover>
+    </Box>
+  );
+};
+
+/* ------------------------------------------------------------------ */
 /*  Main content                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -545,20 +655,7 @@ const LeadShowContent = () => {
         {/* Managers + Reminders stacked */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <InfoCard title="Призначені менеджери" icon={<SupervisorsIcon />}>
-            {managers.length > 0 ? (
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {managers.map((m: any) => (
-                  <Chip
-                    key={m.id}
-                    label={m.name || m.telegram_id}
-                    avatar={<Avatar sx={{ bgcolor: '#6366f1' }}>{(m.name || 'M')[0]}</Avatar>}
-                    sx={{ background: '#1e2235', color: '#e2e8f0', border: '1px solid #2d3158' }}
-                  />
-                ))}
-              </Box>
-            ) : (
-              <Typography variant="body2" sx={{ color: '#475569' }}>Немає призначених менеджерів</Typography>
-            )}
+            <ManagersPanel initialManagers={managers} leadId={record.id} />
           </InfoCard>
 
           <Box sx={{ flex: 1 }}>

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Admin, Resource, CustomRoutes, defaultTheme } from 'react-admin';
 import { Route } from 'react-router-dom';
 import { createTheme } from '@mui/material/styles';
@@ -14,6 +15,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ChatsPage } from './pages/ChatsPage';
 import { CustomLayout } from './layout/CustomLayout';
 import { LoginPage } from './pages/LoginPage';
+import { setCustomStatusLabels } from './utils/statusMaps';
+import api from './api';
 
 const darkTheme = createTheme({
   ...defaultTheme,
@@ -90,6 +93,15 @@ const darkTheme = createTheme({
 });
 
 export default function App() {
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      api.get('/admin/status-labels').then(res => {
+        setCustomStatusLabels(res.data || {});
+      }).catch(() => {});
+    }
+  }, []);
+
   return (
     <Admin
       dataProvider={dataProvider}

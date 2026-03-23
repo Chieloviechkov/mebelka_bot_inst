@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { AiAssistantService } from '../ai-assistant/ai-assistant.service';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { AiAssistantService } from '../ai-assistant/ai-assistant.service.js';
+import { NotificationService } from '../notification/notification.service.js';
 import { FunnelStage } from '@prisma/client';
 import axios from 'axios';
 
@@ -12,7 +13,8 @@ export class InstagramService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly aiAssistant: AiAssistantService
+    private readonly aiAssistant: AiAssistantService,
+    private readonly notification: NotificationService,
   ) {}
 
   async processWebhook(body: any) {
@@ -59,6 +61,11 @@ export class InstagramService {
               data: { lead_id: lead.id, action: 'Лід створено', funnel_stage: FunnelStage.Zayavka }
             });
             this.logger.log(`Створено новий лід ${lead.id} для instagram_id ${senderId}`);
+
+            // Notify supermanagers about new lead
+            this.notification.notifyNewLead(lead.id).catch((err) =>
+              this.logger.error('Помилка сповіщення про новий лід', err),
+            );
           } else if (senderProfile && (!lead.instagram_username || !lead.instagram_name)) {
             lead = await this.prisma.lead.update({
               where: { id: lead.id },
@@ -86,6 +93,14 @@ export class InstagramService {
               attachment_type: attachmentType,
             }
           });
+
+          // Notify assigned managers about new message
+          if (!isNewLead) {
+            const clientName = lead.instagram_name || lead.instagram_username || lead.instagram_id;
+            this.notification.notifyNewMessage(lead.id, clientName, text || '[вкладення]').catch((err) =>
+              this.logger.error('Помилка сповіщення про повідомлення', err),
+            );
+          }
 
           // Check if AI is enabled
           const aiSetting = await this.prisma.setting.findUnique({ where: { key: 'AI_ENABLED' } });

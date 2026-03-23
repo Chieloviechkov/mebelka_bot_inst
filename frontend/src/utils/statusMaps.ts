@@ -122,7 +122,37 @@ const FALLBACK_CONFIG: StatusConfig = {
   border: 'rgba(148, 163, 184, 0.35)',
 };
 
-/** Return { label, color, bg, border } for any LeadStatus value. */
+// ---------------------------------------------------------------------------
+// Runtime custom label overrides (loaded from STATUS_LABELS setting)
+// ---------------------------------------------------------------------------
+
+let _customLabels: Record<string, string> = {};
+
+/** Load custom status labels from the API settings. Call once on app init. */
+export function setCustomStatusLabels(labels: Record<string, string>) {
+  _customLabels = labels ?? {};
+}
+
+/** Return { label, color, bg, border } for any LeadStatus value, with custom label override. */
 export function getStatusConfig(status: string): StatusConfig {
-  return ALL_STATUSES[status] ?? FALLBACK_CONFIG;
+  const base = ALL_STATUSES[status] ?? FALLBACK_CONFIG;
+  const customLabel = _customLabels[status];
+  if (customLabel) {
+    return { ...base, label: customLabel };
+  }
+  return base;
+}
+
+/** Get all status choices with custom label overrides applied. */
+export function getStatusChoicesWithOverrides(): { id: string; name: string }[] {
+  return ALL_STATUS_CHOICES.map(choice => {
+    const customLabel = _customLabels[choice.id];
+    if (customLabel) {
+      // Keep the emoji prefix from original, replace the label text
+      const emojiMatch = choice.name.match(/^(\S+\s)/);
+      const prefix = emojiMatch ? emojiMatch[1] : '';
+      return { id: choice.id, name: `${prefix}${customLabel}` };
+    }
+    return choice;
+  });
 }

@@ -9,10 +9,12 @@ import TuneIcon from '@mui/icons-material/Tune';
 import SaveIcon from '@mui/icons-material/Save';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PsychologyIcon from '@mui/icons-material/Psychology';
+import LabelIcon from '@mui/icons-material/Label';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { usePermissions, useRedirect } from 'react-admin';
 import api from '../api';
+import { ALL_STATUSES, setCustomStatusLabels } from '../utils/statusMaps';
 
 interface CompanyAddress {
   name: string;
@@ -39,6 +41,7 @@ export const SettingsPage = () => {
   }, [role, redirect]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [addresses, setAddresses] = useState<CompanyAddress[]>([]);
+  const [statusLabels, setStatusLabels] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -52,6 +55,13 @@ export const SettingsPage = () => {
         setAddresses(Array.isArray(parsed) ? parsed : []);
       } catch {
         setAddresses([]);
+      }
+      // Parse status labels
+      try {
+        const parsed = JSON.parse(res.data.STATUS_LABELS || '{}');
+        setStatusLabels(typeof parsed === 'object' && parsed !== null ? parsed : {});
+      } catch {
+        setStatusLabels({});
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -81,14 +91,27 @@ export const SettingsPage = () => {
     setSaved(false);
   };
 
+  const handleStatusLabelChange = (statusKey: string, label: string) => {
+    setStatusLabels(prev => ({ ...prev, [statusKey]: label }));
+    setSaved(false);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Filter out empty custom labels (keep only overrides with actual values)
+      const cleanedLabels: Record<string, string> = {};
+      for (const [key, val] of Object.entries(statusLabels)) {
+        if (val && val.trim()) cleanedLabels[key] = val.trim();
+      }
       const payload = {
         ...settings,
         COMPANY_ADDRESSES: JSON.stringify(addresses),
+        STATUS_LABELS: JSON.stringify(cleanedLabels),
       };
       await api.patch('/admin/settings', payload);
+      // Update runtime status labels
+      setCustomStatusLabels(cleanedLabels);
       setSaved(true);
     } catch {
       // error
@@ -360,6 +383,56 @@ export const SettingsPage = () => {
           >
             Додати адресу
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Status Labels */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <LabelIcon sx={{ color: '#6366f1' }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+              Кастомні статуси
+            </Typography>
+          </Box>
+
+          <Typography variant="body2" sx={{ color: '#475569', fontSize: '0.8rem', mb: 2.5 }}>
+            Змініть відображувані назви статусів. Залиште поле порожнім, щоб використовувати назву за замовчуванням.
+          </Typography>
+
+          <Box sx={{ display: 'grid', gap: 1.5 }}>
+            {Object.entries(ALL_STATUSES).map(([key, cfg]) => (
+              <Box
+                key={key}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 2,
+                  p: 1.5, borderRadius: 2,
+                  background: '#12151f',
+                  border: '1px solid #2d3158',
+                }}
+              >
+                <Box sx={{ minWidth: 140 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
+                    <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.7rem' }}>
+                      {key}
+                    </Typography>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.65rem', ml: 2.5 }}>
+                    {cfg.label}
+                  </Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder={cfg.label}
+                  value={statusLabels[key] || ''}
+                  onChange={(e) => handleStatusLabelChange(key, e.target.value)}
+                  sx={inputSx}
+                />
+              </Box>
+            ))}
+          </Box>
         </CardContent>
       </Card>
 

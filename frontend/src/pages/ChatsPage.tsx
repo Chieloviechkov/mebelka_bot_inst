@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Typography, Avatar, Badge, Chip, TextField, Button,
-  IconButton, Skeleton, Tooltip,
+  IconButton, Skeleton, Tooltip, Popover, Checkbox, FormControlLabel,
+  CircularProgress, Divider,
 } from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
 import SendIcon from '@mui/icons-material/Send';
@@ -11,6 +12,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import ReplayIcon from '@mui/icons-material/Replay';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import ForumIcon from '@mui/icons-material/Forum';
 import api from '../api';
 import { getStatusConfig } from '../utils/statusMaps';
 
@@ -21,6 +24,9 @@ export const ChatsPage = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [messageResults, setMessageResults] = useState<any[]>([]);
+  const [searchingMessages, setSearchingMessages] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     api.get(`${API}/leads?page=1&limit=50&sort_field=updatedAt&sort_order=desc`).then(res => {
@@ -29,6 +35,40 @@ export const ChatsPage = () => {
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  // Debounced message search
+  useEffect(() => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    if (search.length > 2) {
+      setSearchingMessages(true);
+      searchTimeoutRef.current = setTimeout(() => {
+        api.get(`${API}/messages/search`, { params: { q: search } })
+          .then(res => {
+            setMessageResults(res.data || []);
+            setSearchingMessages(false);
+          })
+          .catch(() => {
+            setMessageResults([]);
+            setSearchingMessages(false);
+          });
+      }, 400);
+    } else {
+      setMessageResults([]);
+      setSearchingMessages(false);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, [search]);
+
+  const handleMessageResultClick = (msg: any) => {
+    const lead = msg.lead;
+    if (!lead) return;
+    const existingLead = leads.find(l => l.id === lead.id);
+    setSelectedLead(existingLead || { id: lead.id, instagram_name: lead.instagram_name, instagram_username: lead.instagram_username });
+  };
 
   const filtered = search
     ? leads.filter(l =>
@@ -61,14 +101,14 @@ export const ChatsPage = () => {
       </Box>
 
       <TextField
-        fullWidth size="small" placeholder="Пошук чату..."
+        fullWidth size="small" placeholder="Пошук чату або повідомлення..."
         value={search} onChange={e => setSearch(e.target.value)}
         slotProps={{ input: { startAdornment: <SearchIcon sx={{ color: '#475569', mr: 1 }} /> } }}
         sx={{ mb: 2, '& .MuiOutlinedInput-root': { background: '#1a1d2e', borderRadius: '10px', '& fieldset': { borderColor: '#2d3158' } } }}
       />
 
       <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-        {filtered.length === 0 && (
+        {filtered.length === 0 && messageResults.length === 0 && !searchingMessages && (
           <Typography variant="body2" sx={{ color: '#475569', textAlign: 'center', py: 6 }}>
             {search ? 'Нічого не знайдено' : 'Чатів поки немає'}
           </Typography>
@@ -109,6 +149,54 @@ export const ChatsPage = () => {
             </Box>
           );
         })}
+
+        {/* Message search results */}
+        {search.length > 2 && (messageResults.length > 0 || searchingMessages) && (
+          <>
+            <Divider sx={{ borderColor: '#2d3158', my: 1.5 }} />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <ForumIcon sx={{ color: '#818cf8', fontSize: 18 }} />
+              <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.7rem' }}>
+                Знайдено в повідомленнях
+              </Typography>
+              {searchingMessages && <CircularProgress size={14} sx={{ color: '#818cf8', ml: 1 }} />}
+            </Box>
+            {messageResults.map(msg => {
+              const leadName = msg.lead?.instagram_name || msg.lead?.instagram_username || `Lead #${msg.lead_id}`;
+              const snippet = (msg.text || '').length > 120 ? msg.text.substring(0, 120) + '...' : msg.text;
+
+              return (
+                <Box
+                  key={msg.id}
+                  onClick={() => handleMessageResultClick(msg)}
+                  sx={{
+                    p: 1.5, borderRadius: '10px', cursor: 'pointer',
+                    background: '#1a1d2e', border: '1px solid #2d3158',
+                    '&:hover': { borderColor: '#818cf8', background: '#1e2235' },
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600 }}>
+                      {leadName}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.6rem' }}>
+                      {new Date(msg.timestamp).toLocaleString('uk-UA')}
+                    </Typography>
+                    <Chip
+                      label={msg.role === 'manager' ? 'Менеджер' : msg.role === 'bot' ? 'AI' : 'Клієнт'}
+                      size="small"
+                      sx={{ height: 18, fontSize: '0.55rem', background: '#1e2235', color: '#64748b' }}
+                    />
+                  </Box>
+                  <Typography variant="body2" sx={{ color: '#cbd5e1', fontSize: '0.8rem' }}>
+                    {snippet}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </>
+        )}
       </Box>
     </Box>
   );
@@ -116,15 +204,104 @@ export const ChatsPage = () => {
 
 /* ─── Inline chat ─── */
 
+const ManagerAssignPopover = ({ leadId, assignedManagers, onUpdate }: { leadId: number; assignedManagers: any[]; onUpdate: (managers: any[]) => void }) => {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [allManagers, setAllManagers] = useState<any[]>([]);
+  const [loadingMgrs, setLoadingMgrs] = useState(false);
+  const [toggling, setToggling] = useState<number | null>(null);
+
+  const assignedIds = new Set(assignedManagers.map((m: any) => m.id));
+
+  const handleOpen = (e: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(e.currentTarget);
+    if (allManagers.length === 0) {
+      setLoadingMgrs(true);
+      api.get(`${API}/managers`).then(res => {
+        setAllManagers(res.data || []);
+        setLoadingMgrs(false);
+      }).catch(() => setLoadingMgrs(false));
+    }
+  };
+
+  const handleToggle = async (manager: any) => {
+    setToggling(manager.id);
+    try {
+      if (assignedIds.has(manager.id)) {
+        await api.delete(`${API}/leads/${leadId}/assign/${manager.id}`);
+        onUpdate(assignedManagers.filter((m: any) => m.id !== manager.id));
+      } else {
+        await api.post(`${API}/leads/${leadId}/assign`, { manager_id: manager.id });
+        onUpdate([...assignedManagers, manager]);
+      }
+    } catch { /* ignore */ }
+    setToggling(null);
+  };
+
+  return (
+    <>
+      <Tooltip title="Призначити менеджера">
+        <IconButton onClick={handleOpen} sx={{ color: '#64748b' }}>
+          <PersonAddIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Popover
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        PaperProps={{ sx: { background: '#1a1d2e', border: '1px solid #2d3158', borderRadius: '10px', p: 1.5, minWidth: 220 } }}
+      >
+        <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', letterSpacing: '0.08em', display: 'block', mb: 1 }}>
+          Менеджери
+        </Typography>
+        {loadingMgrs && <CircularProgress size={20} sx={{ display: 'block', mx: 'auto', my: 1 }} />}
+        {allManagers.map((m: any) => (
+          <FormControlLabel
+            key={m.id}
+            control={
+              <Checkbox
+                checked={assignedIds.has(m.id)}
+                onChange={() => handleToggle(m)}
+                disabled={toggling === m.id}
+                size="small"
+                sx={{ color: '#475569', '&.Mui-checked': { color: '#6366f1' } }}
+              />
+            }
+            label={
+              <Typography variant="body2" sx={{ color: '#e2e8f0', fontSize: '0.85rem' }}>
+                {m.name || m.email || m.telegram_id}
+              </Typography>
+            }
+            sx={{ display: 'flex', mx: 0, '&:hover': { background: 'rgba(99,102,241,0.05)', borderRadius: '6px' } }}
+          />
+        ))}
+        {!loadingMgrs && allManagers.length === 0 && (
+          <Typography variant="body2" sx={{ color: '#475569', textAlign: 'center', py: 1 }}>Немає менеджерів</Typography>
+        )}
+      </Popover>
+    </>
+  );
+};
+
 const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState('');
+  const [assignedManagers, setAssignedManagers] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textRef = useRef(text);
   textRef.current = text;
 
   const name = lead.instagram_name || lead.instagram_username || lead.instagram_id;
+
+  // Load assigned managers
+  useEffect(() => {
+    api.get(`${API}/leads/${lead.id}/managers`).then(res => {
+      const data = res.data || [];
+      setAssignedManagers(data.map((lm: any) => lm.manager).filter(Boolean));
+    }).catch(() => {});
+  }, [lead.id]);
 
   useEffect(() => {
     window.history.pushState({ chat: true }, '');
@@ -193,25 +370,40 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, height: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, pb: 1.5, borderBottom: '1px solid #2d3158' }}>
-        <IconButton onClick={onBack} sx={{ color: '#94a3b8' }}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Avatar sx={{ width: 38, height: 38, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontWeight: 700, fontSize: '0.95rem' }}>
-          {(name || 'U')[0].toUpperCase()}
-        </Avatar>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#e2e8f0', lineHeight: 1.2 }}>{name}</Typography>
-          <Typography variant="caption" sx={{ color: '#64748b' }}>
-            @{lead.instagram_username || lead.instagram_id}
-            {lead.phone && ` · ${lead.phone}`}
-          </Typography>
-        </Box>
-        <Tooltip title="Відкрити картку ліда">
-          <IconButton onClick={() => { window.location.hash = `#/leads/${lead.id}/show`; }} sx={{ color: '#64748b' }}>
-            <OpenInNewIcon fontSize="small" />
+      <Box sx={{ mb: 2, pb: 1.5, borderBottom: '1px solid #2d3158' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <IconButton onClick={onBack} sx={{ color: '#94a3b8' }}>
+            <ArrowBackIcon />
           </IconButton>
-        </Tooltip>
+          <Avatar sx={{ width: 38, height: 38, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontWeight: 700, fontSize: '0.95rem' }}>
+            {(name || 'U')[0].toUpperCase()}
+          </Avatar>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#e2e8f0', lineHeight: 1.2 }}>{name}</Typography>
+            <Typography variant="caption" sx={{ color: '#64748b' }}>
+              @{lead.instagram_username || lead.instagram_id}
+              {lead.phone && ` · ${lead.phone}`}
+            </Typography>
+          </Box>
+          <ManagerAssignPopover leadId={lead.id} assignedManagers={assignedManagers} onUpdate={setAssignedManagers} />
+          <Tooltip title="Відкрити картку ліда">
+            <IconButton onClick={() => { window.location.hash = `#/leads/${lead.id}/show`; }} sx={{ color: '#64748b' }}>
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        {assignedManagers.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', ml: 7, mt: 0.5 }}>
+            {assignedManagers.map((m: any) => (
+              <Chip
+                key={m.id}
+                label={m.name || m.email || m.telegram_id}
+                size="small"
+                sx={{ height: 20, fontSize: '0.65rem', background: '#1e2235', color: '#94a3b8', border: '1px solid #2d3158' }}
+              />
+            ))}
+          </Box>
+        )}
       </Box>
 
       {/* Messages */}
