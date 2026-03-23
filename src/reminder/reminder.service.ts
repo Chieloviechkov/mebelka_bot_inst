@@ -43,17 +43,17 @@ export class ReminderService {
           continue;
         }
 
-        const sent = await this.instagramService.sendMessage(
+        const result = await this.instagramService.sendMessage(
           reminder.lead.instagram_id,
           'Добрий день! Ви ще тут? Ми готові відповісти на всі ваші питання щодо меблів! 🪑',
         );
 
         await this.prisma.reminder.update({
           where: { id: reminder.id },
-          data: { status: sent ? 'sent' : 'failed' },
+          data: { status: result.ok ? 'sent' : 'failed' },
         });
 
-        if (sent) {
+        if (result.ok) {
           this.logger.log(`Follow up sent to lead ${reminder.lead.id}`);
         }
       }

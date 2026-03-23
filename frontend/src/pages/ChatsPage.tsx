@@ -215,7 +215,9 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
                 {failed && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.3 }}>
                     <ErrorOutlineIcon sx={{ fontSize: 14, color: '#ef4444' }} />
-                    <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 600 }}>Не доставлено</Typography>
+                    <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 600 }}>
+                      {msg.delivery_error || 'Не доставлено'}
+                    </Typography>
                   </Box>
                 )}
                 {isBot && <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block', mb: 0.3 }}>AI Bot</Typography>}

@@ -318,6 +318,7 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
     const isManager = msg.role === 'manager';
     const isBot = msg.role === 'bot';
     const alignRight = isBot || isManager;
+    const failed = isManager && msg.delivered === false;
     const [imgOpen, setImgOpen] = useState(false);
 
     return (
@@ -326,11 +327,12 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
           sx={{
             maxWidth: { xs: '90%', sm: '75%', md: '65%' }, px: 2, py: 1,
             borderRadius: alignRight ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-            background: isManager ? 'rgba(34,197,94,0.15)' : isBot ? 'rgba(99,102,241,0.15)' : '#1e2235',
-            border: isManager ? '1px solid rgba(34,197,94,0.3)' : isBot ? '1px solid rgba(99,102,241,0.25)' : '1px solid #2d3158',
+            background: failed ? 'rgba(239,68,68,0.1)' : isManager ? 'rgba(34,197,94,0.15)' : isBot ? 'rgba(99,102,241,0.15)' : '#1e2235',
+            border: failed ? '1px solid rgba(239,68,68,0.3)' : isManager ? '1px solid rgba(34,197,94,0.3)' : isBot ? '1px solid rgba(99,102,241,0.25)' : '1px solid #2d3158',
           }}
         >
-          {isManager && <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'block', mb: 0.5 }}>Менеджер</Typography>}
+          {isManager && !failed && <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'block', mb: 0.5 }}>Менеджер</Typography>}
+          {failed && <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 600, display: 'block', mb: 0.5 }}>{msg.delivery_error || 'Не доставлено'}</Typography>}
           {isBot && <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block', mb: 0.5 }}>AI Bot</Typography>}
           {msg.text && <Typography variant="body2" sx={{ color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>}
 

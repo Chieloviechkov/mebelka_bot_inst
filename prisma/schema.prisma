@@ -68,6 +68,7 @@ model Message {
   attachment_url  String?
   attachment_type String?  // image, video, file, audio
   delivered       Boolean  @default(true)
+  delivery_error  String?
   timestamp       DateTime @default(now())
   lead_id         Int
   lead            Lead     @relation(fields: [lead_id], references: [id])

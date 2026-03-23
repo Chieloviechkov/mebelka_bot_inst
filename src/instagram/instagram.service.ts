@@ -113,7 +113,7 @@ export class InstagramService {
     }
   }
 
-  async sendMessage(recipientId: string, text: string): Promise<boolean> {
+  async sendMessage(recipientId: string, text: string): Promise<{ ok: boolean; error?: string }> {
     try {
       const response = await axios.post(
         this.proxyInstagramSendUrl,
@@ -121,15 +121,15 @@ export class InstagramService {
         { headers: { Authorization: `Bearer ${this.proxyApiSecret}`, 'Content-Type': 'application/json' } },
       );
       this.logger.log(`Sent message to ${recipientId} via proxy, messageId: ${response.data?.messageId}`);
-      return true;
+      return { ok: true };
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || error.message || '';
       if (errorMsg.includes('outside of allowed window')) {
         this.logger.warn(`Cannot send to ${recipientId}: messaging window expired (24h limit).`);
-      } else {
-        this.logger.error(`Error sending message to ${recipientId}: ${JSON.stringify(error.response?.data || error.message)}`);
+        return { ok: false, error: 'Вікно 24 години вичерпано — клієнт має написати першим' };
       }
-      return false;
+      this.logger.error(`Error sending message to ${recipientId}: ${JSON.stringify(error.response?.data || error.message)}`);
+      return { ok: false, error: errorMsg || 'Помилка відправки через Instagram' };
     }
   }
 }

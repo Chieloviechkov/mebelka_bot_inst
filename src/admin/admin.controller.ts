@@ -233,10 +233,10 @@ export class AdminController {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
     if (!lead) throw new BadRequestException('Лід не знайдено');
 
-    const sent = await this.instagramService.sendMessage(lead.instagram_id, text);
+    const result = await this.instagramService.sendMessage(lead.instagram_id, text);
 
     const message = await this.prisma.message.create({
-      data: { text, sender_id: 'manager', role: 'manager', lead_id: id, delivered: sent },
+      data: { text, sender_id: 'manager', role: 'manager', lead_id: id, delivered: result.ok, delivery_error: result.error || null },
     });
 
     // Track funnel: first manager message = KontaktMenedzhera
@@ -258,8 +258,8 @@ export class AdminController {
     if (!message) throw new BadRequestException('Повідомлення не знайдено');
     if (message.delivered) return message;
 
-    const sent = await this.instagramService.sendMessage(message.lead.instagram_id, message.text || '');
-    return this.prisma.message.update({ where: { id }, data: { delivered: sent } });
+    const result = await this.instagramService.sendMessage(message.lead.instagram_id, message.text || '');
+    return this.prisma.message.update({ where: { id }, data: { delivered: result.ok, delivery_error: result.ok ? null : result.error } });
   }
 
   // ─── MANAGER ASSIGNMENT ─────────────────────────────
