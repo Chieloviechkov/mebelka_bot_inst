@@ -17,7 +17,7 @@ const API = import.meta.env.VITE_API_URL || '/admin';
 
 const ROLES: Record<string, { label: string; color: string; bg: string }> = {
   manager: { label: 'Менеджер', color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
-  supermanager: { label: 'Супер-менеджер', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+  supermanager: { label: 'Адміністратор', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
 };
 
 export const ManagersPage = () => {
@@ -117,7 +117,7 @@ export const ManagersPage = () => {
       </Box>
 
       {/* Stats */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
         <Card>
           <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Box sx={{ width: 44, height: 44, borderRadius: '12px', background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -135,7 +135,7 @@ export const ManagersPage = () => {
               <BadgeIcon sx={{ color: '#f59e0b' }} />
             </Box>
             <Box>
-              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Супер-менеджерів</Typography>
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.7rem' }}>Адміністраторів</Typography>
               <Typography variant="h4" sx={{ fontWeight: 800, color: '#e2e8f0', lineHeight: 1 }}>{managers.filter(m => m.role === 'supermanager').length}</Typography>
             </Box>
           </CardContent>
@@ -155,7 +155,7 @@ export const ManagersPage = () => {
 
       {/* Table */}
       <Card>
-        <TableContainer>
+        <TableContainer sx={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <Table>
             <TableHead>
               <TableRow>
@@ -198,7 +198,7 @@ export const ManagersPage = () => {
                         }}
                       >
                         <MenuItem value="manager">Менеджер</MenuItem>
-                        <MenuItem value="supermanager">Супер-менеджер</MenuItem>
+                        <MenuItem value="supermanager">Адміністратор</MenuItem>
                       </Select>
                     </TableCell>
                     <TableCell>
@@ -278,7 +278,7 @@ export const ManagersPage = () => {
               }}
             >
               <MenuItem value="manager">Менеджер</MenuItem>
-              <MenuItem value="supermanager">Супер-менеджер</MenuItem>
+              <MenuItem value="supermanager">Адміністратор</MenuItem>
             </Select>
           </FormControl>
         </DialogContent>

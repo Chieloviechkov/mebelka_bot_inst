@@ -32,6 +32,11 @@ const darkTheme = createTheme({
       secondary: '#94a3b8',
     },
     divider: '#2d3158',
+    action: {
+      hover: 'rgba(99,102,241,0.08)',
+      selected: 'rgba(99,102,241,0.12)',
+      focus: 'rgba(99,102,241,0.08)',
+    },
   },
   shape: { borderRadius: 12 },
   typography: {

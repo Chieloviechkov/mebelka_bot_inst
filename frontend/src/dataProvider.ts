@@ -1,7 +1,7 @@
 import type { DataProvider } from 'react-admin';
 import { fetchUtils } from 'react-admin';
 
-const API = import.meta.env.VITE_API_URL || '/admin';
+const API = '/admin';
 
 const httpClient = (url: string, options: fetchUtils.Options = {}) => {
   const token = localStorage.getItem('token');
@@ -54,21 +54,14 @@ export const dataProvider: DataProvider = {
 
   getOne: async (resource, params) => {
     if (resource === 'leads') {
-      // Fetch lead directly + messages
-      const [leadRes, msgsRes] = await Promise.all([
-        httpClient(`${API}/leads/${params.id}`),
-        httpClient(`${API}/leads/${params.id}/messages?limit=200`).catch(() => ({ json: { data: [] } })),
-      ]);
-
-      const lead = leadRes.json;
+      const { json: lead } = await httpClient(`${API}/leads/${params.id}`);
 
       // Map managers from leadManagers relation
       lead.managers = (lead.leadManagers || []).map((lm: any) => lm.manager);
       lead.manager_ids = (lead.leadManagers || []).map((lm: any) => lm.manager_id);
 
-      // Messages come desc from API, reverse for chronological order
-      const messages = msgsRes.json.data || msgsRes.json || [];
-      lead.messages = messages.reverse();
+      // Messages come desc from backend getLead, reverse for chronological
+      lead.messages = [...(lead.messages || [])].reverse();
 
       return { data: lead };
     }

@@ -95,8 +95,12 @@ export class AiAssistantService {
         content: msg.text || '[вкладення]',
       }));
 
+      // Use custom prompt from settings if available, otherwise fallback to default
+      const customPrompt = await this.prisma.setting.findUnique({ where: { key: 'AI_SYSTEM_PROMPT' } });
+      const systemPrompt = customPrompt?.value?.trim() || this.SYSTEM_PROMPT;
+
       const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-        { role: 'system', content: this.SYSTEM_PROMPT },
+        { role: 'system', content: systemPrompt },
         ...conversationHistory,
       ];
 

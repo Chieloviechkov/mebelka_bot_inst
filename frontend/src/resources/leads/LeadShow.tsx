@@ -2,7 +2,11 @@ import { Show, useShowContext, useNotify } from 'react-admin';
 import {
   Box, Typography, Card, CardContent, Chip,
   TextField as MuiTextField, Button, Avatar, IconButton,
+  Dialog, DialogContent, AppBar, Toolbar as MuiToolbar, Badge,
 } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import ImageIcon from '@mui/icons-material/Image';
 import SendIcon from '@mui/icons-material/Send';
 import NotesIcon from '@mui/icons-material/Notes';
 import HistoryIcon from '@mui/icons-material/History';
@@ -40,6 +44,53 @@ const InfoCard = ({ title, icon, children }: { title: string; icon: React.ReactN
     </CardContent>
   </Card>
 );
+
+import EditIcon from '@mui/icons-material/Edit';
+import CheckIcon from '@mui/icons-material/Check';
+
+const EditableDetailRow = ({ label, value, field, leadId, onSave }: { label: string; value?: string | null; field: string; leadId: number; onSave?: (field: string, val: string) => void }) => {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value || '');
+  const notify = useNotify();
+
+  const handleSave = async () => {
+    try {
+      await api.patch(`${API}/leads/${leadId}/status`, { status: val }); // reuse or make generic
+    } catch { /* ignore */ }
+    setEditing(false);
+    onSave?.(field, val);
+  };
+
+  if (editing) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, borderBottom: '1px solid #1e2235' }}>
+        <Typography variant="body2" sx={{ color: '#64748b', minWidth: 100, flexShrink: 0 }}>{label}</Typography>
+        <MuiTextField
+          size="small" fullWidth value={val} onChange={e => setVal(e.target.value)} autoFocus
+          onKeyDown={e => { if (e.key === 'Enter') { setEditing(false); onSave?.(field, val); } if (e.key === 'Escape') setEditing(false); }}
+          sx={{ '& .MuiOutlinedInput-root': { background: '#12151f', borderRadius: '6px', '& fieldset': { borderColor: '#2d3158' }, '& input': { py: 0.5, fontSize: '0.85rem' } } }}
+        />
+        <IconButton size="small" onClick={() => { setEditing(false); onSave?.(field, val); }} sx={{ color: '#22c55e' }}>
+          <CheckIcon sx={{ fontSize: 16 }} />
+        </IconButton>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.8, borderBottom: '1px solid #1e2235', '&:hover .edit-btn': { opacity: 1 } }}>
+      <Typography variant="body2" sx={{ color: '#64748b' }}>{label}</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Typography variant="body2" sx={{ color: '#e2e8f0', fontWeight: 500, maxWidth: '60%', textAlign: 'right' }}>
+          {value ?? '—'}
+        </Typography>
+        <IconButton className="edit-btn" size="small" onClick={() => { setVal(value || ''); setEditing(true); }} sx={{ opacity: 0, transition: 'opacity 0.2s', color: '#64748b', p: 0.3 }}>
+          <EditIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Box>
+    </Box>
+  );
+};
 
 const DetailRow = ({ label, value }: { label: string; value?: string | null }) => (
   <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.8, borderBottom: '1px solid #1e2235' }}>
@@ -217,8 +268,22 @@ const RemindersPanel = ({ initialReminders, leadId }: { initialReminders: any[];
 /* ------------------------------------------------------------------ */
 
 const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; leadId: number }) => {
-  // API returns desc order; reverse once for chronological display
-  const [messages, setMessages] = useState<any[]>(() => [...(initialMessages ?? [])].reverse());
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  // Always fetch messages from API to avoid react-admin cache issues
+  useEffect(() => {
+    if (initialMessages?.length > 0) {
+      setMessages([...(initialMessages)].reverse());
+      setLoaded(true);
+    } else {
+      api.get(`${API}/leads/${leadId}/messages?limit=200`).then(res => {
+        const data = res.data?.data || res.data || [];
+        setMessages([...data].reverse());
+        setLoaded(true);
+      }).catch(() => setLoaded(true));
+    }
+  }, [leadId]);
   const [text, setText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const notify = useNotify();
@@ -243,75 +308,72 @@ const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; le
     }
   }, [text, leadId, notify]);
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Box ref={scrollRef} sx={{ flex: 1, maxHeight: 450, overflowY: 'auto', pr: 1, mb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {messages.length === 0 && (
+  const MessageBubble = ({ msg }: { msg: any }) => {
+    const isManager = msg.role === 'manager';
+    const isBot = msg.role === 'bot';
+    const alignRight = isBot || isManager;
+    const [imgOpen, setImgOpen] = useState(false);
+
+    return (
+      <Box sx={{ display: 'flex', justifyContent: alignRight ? 'flex-end' : 'flex-start' }}>
+        <Box
+          sx={{
+            maxWidth: { xs: '90%', sm: '75%', md: '65%' }, px: 2, py: 1,
+            borderRadius: alignRight ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+            background: isManager ? 'rgba(34,197,94,0.15)' : isBot ? 'rgba(99,102,241,0.15)' : '#1e2235',
+            border: isManager ? '1px solid rgba(34,197,94,0.3)' : isBot ? '1px solid rgba(99,102,241,0.25)' : '1px solid #2d3158',
+          }}
+        >
+          {isManager && <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'block', mb: 0.5 }}>Менеджер</Typography>}
+          {isBot && <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block', mb: 0.5 }}>AI Bot</Typography>}
+          {msg.text && <Typography variant="body2" sx={{ color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>}
+
+          {msg.attachment_url && msg.attachment_type === 'image' && (
+            <>
+              <Box
+                component="img"
+                src={msg.attachment_url}
+                alt="attachment"
+                onClick={() => setImgOpen(true)}
+                sx={{ mt: 1, maxWidth: '100%', maxHeight: 300, borderRadius: '8px', display: 'block', cursor: 'pointer', '&:hover': { opacity: 0.85 } }}
+              />
+              <Dialog open={imgOpen} onClose={() => setImgOpen(false)} maxWidth="lg">
+                <Box component="img" src={msg.attachment_url} alt="full" sx={{ maxWidth: '90vw', maxHeight: '90vh' }} />
+              </Dialog>
+            </>
+          )}
+          {msg.attachment_url && msg.attachment_type !== 'image' && (
+            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <AttachFileIcon sx={{ fontSize: 14, color: '#818cf8' }} />
+              <Typography component="a" href={msg.attachment_url} target="_blank" rel="noopener noreferrer" variant="caption"
+                sx={{ color: '#818cf8', textDecoration: 'underline', '&:hover': { color: '#a5b4fc' } }}>
+                Вкладення
+              </Typography>
+            </Box>
+          )}
+          <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.65rem', display: 'block', mt: 0.3 }}>
+            {new Date(msg.timestamp).toLocaleString('uk-UA')}
+          </Typography>
+        </Box>
+      </Box>
+    );
+  };
+
+  const ChatContent = ({ maxH }: { maxH?: string | number }) => (
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: maxH || '100%' }}>
+      <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', pr: 1, mb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        {messages.length === 0 && !loaded && (
+          <Typography variant="body2" sx={{ color: '#475569', textAlign: 'center', py: 3 }}>Завантаження...</Typography>
+        )}
+        {messages.length === 0 && loaded && (
           <Typography variant="body2" sx={{ color: '#334155', textAlign: 'center', py: 3 }}>Повідомлень немає</Typography>
         )}
-        {messages.map((msg: any) => {
-          const isManager = msg.role === 'manager';
-          const isBot = msg.role === 'bot';
-          const alignRight = isBot || isManager;
-
-          return (
-            <Box key={msg.id} sx={{ display: 'flex', justifyContent: alignRight ? 'flex-end' : 'flex-start' }}>
-              <Box
-                sx={{
-                  maxWidth: '75%', px: 2, py: 1,
-                  borderRadius: alignRight ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                  background: isManager ? 'rgba(34,197,94,0.15)' : isBot ? 'rgba(99,102,241,0.15)' : '#1e2235',
-                  border: isManager ? '1px solid rgba(34,197,94,0.3)' : isBot ? '1px solid rgba(99,102,241,0.25)' : '1px solid #2d3158',
-                }}
-              >
-                {isManager && <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'block', mb: 0.5 }}>Менеджер</Typography>}
-                {isBot && <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block', mb: 0.5 }}>AI Bot</Typography>}
-
-                <Typography variant="body2" sx={{ color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>
-
-                {/* Attachment rendering */}
-                {msg.attachment_url && (
-                  msg.attachment_type === 'image' ? (
-                    <Box
-                      component="img"
-                      src={msg.attachment_url}
-                      alt="attachment"
-                      sx={{ mt: 1, maxWidth: '100%', maxHeight: 220, borderRadius: '8px', display: 'block' }}
-                    />
-                  ) : (
-                    <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <AttachFileIcon sx={{ fontSize: 14, color: '#818cf8' }} />
-                      <Typography
-                        component="a"
-                        href={msg.attachment_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        variant="caption"
-                        sx={{ color: '#818cf8', textDecoration: 'underline', '&:hover': { color: '#a5b4fc' } }}
-                      >
-                        Вкладення
-                      </Typography>
-                    </Box>
-                  )
-                )}
-
-                <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.65rem', display: 'block', mt: 0.3 }}>
-                  {new Date(msg.timestamp).toLocaleString('uk-UA')}
-                </Typography>
-              </Box>
-            </Box>
-          );
-        })}
+        {messages.map((msg: any) => <MessageBubble key={msg.id} msg={msg} />)}
       </Box>
-
-      {/* Send input */}
-      <Box sx={{ display: 'flex', gap: 1 }}>
+      <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
         <MuiTextField
-          fullWidth
-          size="small"
-          placeholder="Написати клієнту..."
-          value={text}
-          onChange={e => setText(e.target.value)}
+          fullWidth size="small" placeholder="Написати клієнту..."
+          value={text} onChange={e => setText(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
           sx={{ '& .MuiOutlinedInput-root': { background: '#12151f', borderRadius: '8px', '& fieldset': { borderColor: '#2d3158' } } }}
         />
@@ -320,6 +382,66 @@ const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; le
         </Button>
       </Box>
     </Box>
+  );
+
+  return { messages, ChatContent, msgCount: messages.length };
+};
+
+/* ------------------------------------------------------------------ */
+/*  Chat dialog (fullscreen)                                           */
+/* ------------------------------------------------------------------ */
+
+const ChatDialog = ({ initialMessages, leadId, msgCount }: { initialMessages: any[]; leadId: number; msgCount: number }) => {
+  const [open, setOpen] = useState(false);
+  const panel = MessagesPanel({ initialMessages, leadId });
+
+  return (
+    <>
+      {/* Open chat button */}
+      <Card
+        onClick={() => setOpen(true)}
+        sx={{
+          mb: 2, cursor: 'pointer', background: '#1a1d2e', border: '1px solid #2d3158',
+          '&:hover': { borderColor: '#6366f1', background: '#1e2235' },
+          transition: 'all 0.2s',
+        }}
+      >
+        <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: '12px !important' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Badge badgeContent={panel.msgCount || msgCount} color="primary" max={999}>
+              <ChatIcon sx={{ color: '#6366f1' }} />
+            </Badge>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#e2e8f0' }}>
+              Відкрити чат з клієнтом
+            </Typography>
+          </Box>
+          <OpenInFullIcon sx={{ color: '#64748b', fontSize: 20 }} />
+        </CardContent>
+      </Card>
+
+      {/* Fullscreen dialog */}
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        fullScreen
+        PaperProps={{ sx: { background: '#0f1117' } }}
+      >
+        <AppBar sx={{ position: 'relative', background: '#12151f', borderBottom: '1px solid #2d3158', boxShadow: 'none' }}>
+          <MuiToolbar sx={{ minHeight: '52px !important' }}>
+            <ChatIcon sx={{ color: '#6366f1', mr: 1.5 }} />
+            <Typography variant="subtitle1" sx={{ flex: 1, fontWeight: 700, color: '#e2e8f0' }}>
+              Чат з клієнтом
+            </Typography>
+            <IconButton edge="end" onClick={() => setOpen(false)} sx={{ color: '#94a3b8' }}>
+              <CloseIcon />
+            </IconButton>
+          </MuiToolbar>
+        </AppBar>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', maxWidth: 800, mx: 'auto', width: '100%' }}>
+          <panel.ChatContent maxH="calc(100vh - 120px)" />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
@@ -389,16 +511,27 @@ const LeadShowContent = () => {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr 1fr' }, gap: 2, mb: 2 }}>
         {/* Client card */}
         <InfoCard title="Картка клієнта" icon={<PersonIcon />}>
-          <DetailRow label="Тип меблів" value={record.type} />
-          <DetailRow label="Розміри" value={record.dimensions} />
-          <DetailRow label="Стиль" value={record.style} />
-          <DetailRow label="Матеріали" value={record.materials} />
-          <DetailRow label="Бюджет" value={record.budget} />
-          <DetailRow label="Ціна за м\u00B2" value={record.price_per_sqm} />
-          <DetailRow label="Терміни" value={record.timeline} />
-          <DetailRow label="Місцезнаходження" value={record.location} />
-          <DetailRow label="Є проект" value={record.has_project != null ? (record.has_project ? 'Так' : 'Ні') : null} />
-          <DetailRow label="Побажання" value={record.wishes} />
+          {(() => {
+            const handleFieldSave = async (field: string, val: string) => {
+              try {
+                await api.patch(`${API}/leads/${record.id}`, { [field]: val });
+              } catch { /* ignore */ }
+            };
+            return (<>
+              <EditableDetailRow label="Ім'я" value={record.instagram_name} field="instagram_name" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Телефон" value={record.phone} field="phone" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Тип меблів" value={record.type} field="type" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Розміри" value={record.dimensions} field="dimensions" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Стиль" value={record.style} field="style" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Матеріали" value={record.materials} field="materials" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Бюджет" value={record.budget} field="budget" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Ціна за м²" value={record.price_per_sqm} field="price_per_sqm" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Терміни" value={record.timeline} field="timeline" leadId={record.id} onSave={handleFieldSave} />
+              <EditableDetailRow label="Місцезнаходження" value={record.location} field="location" leadId={record.id} onSave={handleFieldSave} />
+              <DetailRow label="Є проект" value={record.has_project != null ? (record.has_project ? 'Так' : 'Ні') : null} />
+              <EditableDetailRow label="Побажання" value={record.wishes} field="wishes" leadId={record.id} onSave={handleFieldSave} />
+            </>);
+          })()}
         </InfoCard>
 
         {/* Managers + Reminders stacked */}
@@ -433,12 +566,10 @@ const LeadShowContent = () => {
         </InfoCard>
       </Box>
 
-      {/* ========== 3. BOTTOM: Chat 2fr | History 1fr ========== */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2 }}>
-        {/* Chat */}
-        <InfoCard title="Чат з клієнтом" icon={<ChatIcon />}>
-          <MessagesPanel initialMessages={record.messages ?? []} leadId={record.id} />
-        </InfoCard>
+      {/* ========== 3. BOTTOM: Chat button + History ========== */}
+      <ChatDialog initialMessages={record.messages ?? []} leadId={record.id} msgCount={record._count?.messages ?? 0} />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
 
         {/* History timeline */}
         <Card sx={{ background: '#1a1d2e', border: '1px solid #2d3158' }}>
@@ -481,7 +612,7 @@ const LeadShowContent = () => {
 /* ------------------------------------------------------------------ */
 
 export const LeadShow = () => (
-  <Show>
+  <Show queryOptions={{ refetchOnMount: true, staleTime: 0, cacheTime: 0 }}>
     <LeadShowContent />
   </Show>
 );

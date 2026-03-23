@@ -93,6 +93,24 @@ export class AdminController {
     return lead;
   }
 
+  @Patch('leads/:id')
+  async updateLead(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: Record<string, any>,
+  ) {
+    const allowed = [
+      'instagram_name', 'phone', 'location', 'has_project',
+      'type', 'dimensions', 'style', 'materials',
+      'budget', 'price_per_sqm', 'timeline', 'wishes',
+    ];
+    const data: any = {};
+    for (const key of allowed) {
+      if (body[key] !== undefined) data[key] = body[key];
+    }
+    if (Object.keys(data).length === 0) throw new BadRequestException('Немає полів для оновлення');
+    return this.prisma.lead.update({ where: { id }, data });
+  }
+
   @Patch('leads/:id/status')
   async updateStatus(
     @Param('id', ParseIntPipe) id: number,

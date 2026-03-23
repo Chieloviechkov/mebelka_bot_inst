@@ -7,9 +7,10 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: #0f1117;
   color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-/* React-Admin dark theme overrides */
 :root {
   --primary: #6366f1;
   --primary-light: #818cf8;
@@ -19,4 +20,77 @@ body {
   --surface: #1a1d2e;
   --surface-2: #252840;
   --border: #2d3158;
+}
+
+/* ── React-Admin mobile fixes ── */
+
+/* Sidebar closed state - hide overflow */
+.RaSidebar-fixed {
+  overflow-x: hidden !important;
+}
+
+/* Datagrid horizontal scroll on mobile */
+.RaDatagrid-tableWrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Cards not overflow on mobile */
+.MuiCard-root {
+  overflow: hidden;
+}
+
+/* AppBar fixes */
+.RaAppBar-toolbar {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+}
+
+/* Mobile: tighter padding */
+@media (max-width: 600px) {
+  .RaLayout-content {
+    padding: 8px !important;
+  }
+
+  .RaList-main {
+    margin-top: 4px !important;
+  }
+
+  .MuiTableCell-root {
+    padding: 8px 6px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .MuiCardContent-root {
+    padding: 12px !important;
+  }
+
+  /* Hide less important columns */
+  .RaDatagrid-headerCell:nth-child(n+4),
+  .RaDatagrid-rowCell:nth-child(n+4) {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .RaDatagrid-headerCell:nth-child(n+5),
+  .RaDatagrid-rowCell:nth-child(n+5) {
+    display: none;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2d3158;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3d4168;
 }
