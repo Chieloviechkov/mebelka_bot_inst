@@ -236,7 +236,7 @@ export class AdminController {
     const sent = await this.instagramService.sendMessage(lead.instagram_id, text);
 
     const message = await this.prisma.message.create({
-      data: { text, sender_id: 'manager', role: 'manager', lead_id: id },
+      data: { text, sender_id: 'manager', role: 'manager', lead_id: id, delivered: sent },
     });
 
     // Track funnel: first manager message = KontaktMenedzhera
@@ -249,7 +249,17 @@ export class AdminController {
       });
     }
 
-    return { ...message, delivered: sent };
+    return message;
+  }
+
+  @Post('messages/:id/retry')
+  async retryMessage(@Param('id', ParseIntPipe) id: number) {
+    const message = await this.prisma.message.findUnique({ where: { id }, include: { lead: true } });
+    if (!message) throw new BadRequestException('Повідомлення не знайдено');
+    if (message.delivered) return message;
+
+    const sent = await this.instagramService.sendMessage(message.lead.instagram_id, message.text || '');
+    return this.prisma.message.update({ where: { id }, data: { delivered: sent } });
   }
 
   // ─── MANAGER ASSIGNMENT ─────────────────────────────

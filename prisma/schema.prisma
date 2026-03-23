@@ -67,6 +67,7 @@ model Message {
   role            String   // user / bot / manager
   attachment_url  String?
   attachment_type String?  // image, video, file, audio
+  delivered       Boolean  @default(true)
   timestamp       DateTime @default(now())
   lead_id         Int
   lead            Lead     @relation(fields: [lead_id], references: [id])

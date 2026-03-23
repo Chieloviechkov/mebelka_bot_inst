@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box, Typography, Avatar, Badge, Chip, TextField, Button,
-  IconButton, Skeleton,
+  IconButton, Skeleton, Tooltip,
 } from '@mui/material';
 import ChatIcon from '@mui/icons-material/Chat';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import SearchIcon from '@mui/icons-material/Search';
+import ReplayIcon from '@mui/icons-material/Replay';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import api from '../api';
 import { getStatusConfig } from '../utils/statusMaps';
 
@@ -22,7 +25,6 @@ export const ChatsPage = () => {
   useEffect(() => {
     api.get(`${API}/leads?page=1&limit=50&sort_field=updatedAt&sort_order=desc`).then(res => {
       const data = res.data?.data || res.data || [];
-      // Only show leads that have messages
       setLeads(data.filter((l: any) => (l._count?.messages ?? 0) > 0));
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -44,31 +46,27 @@ export const ChatsPage = () => {
     );
   }
 
+  if (selectedLead) {
+    return <InlineChat lead={selectedLead} onBack={() => setSelectedLead(null)} />;
+  }
+
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, height: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
       <Box sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
           <ChatIcon sx={{ color: '#6366f1', fontSize: 28 }} />
           <Typography variant="h4" sx={{ fontWeight: 800, color: '#e2e8f0' }}>Чати</Typography>
         </Box>
-        <Typography variant="body2" sx={{ color: '#475569' }}>
-          Історія переписок з клієнтами в Instagram
-        </Typography>
+        <Typography variant="body2" sx={{ color: '#475569' }}>Історія переписок з клієнтами</Typography>
       </Box>
 
-      {/* Search */}
       <TextField
         fullWidth size="small" placeholder="Пошук чату..."
         value={search} onChange={e => setSearch(e.target.value)}
         slotProps={{ input: { startAdornment: <SearchIcon sx={{ color: '#475569', mr: 1 }} /> } }}
-        sx={{
-          mb: 2,
-          '& .MuiOutlinedInput-root': { background: '#1a1d2e', borderRadius: '10px', '& fieldset': { borderColor: '#2d3158' } },
-        }}
+        sx={{ mb: 2, '& .MuiOutlinedInput-root': { background: '#1a1d2e', borderRadius: '10px', '& fieldset': { borderColor: '#2d3158' } } }}
       />
 
-      {/* Chat list */}
       <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         {filtered.length === 0 && (
           <Typography variant="body2" sx={{ color: '#475569', textAlign: 'center', py: 6 }}>
@@ -112,19 +110,11 @@ export const ChatsPage = () => {
           );
         })}
       </Box>
-
     </Box>
   );
-
-  // If a lead is selected, show chat inline (replaces list)
-  if (selectedLead) {
-    return <InlineChat lead={selectedLead} onBack={() => setSelectedLead(null)} />;
-  }
-
-  return listView;
 };
 
-/* ─── Inline chat (stays within layout, sidebar visible) ─── */
+/* ─── Inline chat ─── */
 
 const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
   const [messages, setMessages] = useState<any[]>([]);
@@ -136,7 +126,6 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
 
   const name = lead.instagram_name || lead.instagram_username || lead.instagram_id;
 
-  // Back button support
   useEffect(() => {
     window.history.pushState({ chat: true }, '');
     const handlePop = () => onBack();
@@ -160,20 +149,23 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
     const t = textRef.current;
     if (!t.trim()) return;
     const body = t.trim();
-    const tempMsg = { id: Date.now(), text: body, role: 'manager', timestamp: new Date().toISOString() };
+    const tempMsg = { id: Date.now(), text: body, role: 'manager', delivered: true, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, tempMsg]);
     setText('');
     try {
       const res = await api.post(`${API}/leads/${lead.id}/message`, { text: body });
-      const delivered = res.data.delivered !== false;
       setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
-      if (!delivered) {
-        // Could show a toast, but for now just mark in message
-      }
     } catch {
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
     }
   }, [lead.id]);
+
+  const handleRetry = async (msgId: number) => {
+    try {
+      const res = await api.post(`${API}/messages/${msgId}/retry`);
+      setMessages(prev => prev.map(m => (m.id === msgId ? res.data : m)));
+    } catch { /* ignore */ }
+  };
 
   return (
     <Box sx={{ p: { xs: 1, sm: 2, md: 3 }, height: 'calc(100vh - 60px)', display: 'flex', flexDirection: 'column' }}>
@@ -192,6 +184,11 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
             {lead.phone && ` · ${lead.phone}`}
           </Typography>
         </Box>
+        <Tooltip title="Відкрити картку ліда">
+          <IconButton onClick={() => { window.location.hash = `#/leads/${lead.id}/show`; }} sx={{ color: '#64748b' }}>
+            <OpenInNewIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Messages */}
@@ -202,6 +199,7 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
           const isManager = msg.role === 'manager';
           const isBot = msg.role === 'bot';
           const alignRight = isBot || isManager;
+          const failed = isManager && msg.delivered === false;
 
           return (
             <Box key={msg.id} sx={{ display: 'flex', justifyContent: alignRight ? 'flex-end' : 'flex-start', maxWidth: 800, mx: 'auto', width: '100%' }}>
@@ -209,13 +207,19 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
                 sx={{
                   maxWidth: { xs: '85%', sm: '70%' }, px: 2, py: 1,
                   borderRadius: alignRight ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                  background: isManager ? 'rgba(34,197,94,0.15)' : isBot ? 'rgba(99,102,241,0.15)' : '#1e2235',
-                  border: isManager ? '1px solid rgba(34,197,94,0.3)' : isBot ? '1px solid rgba(99,102,241,0.25)' : '1px solid #2d3158',
+                  background: failed ? 'rgba(239,68,68,0.1)' : isManager ? 'rgba(34,197,94,0.15)' : isBot ? 'rgba(99,102,241,0.15)' : '#1e2235',
+                  border: failed ? '1px solid rgba(239,68,68,0.3)' : isManager ? '1px solid rgba(34,197,94,0.3)' : isBot ? '1px solid rgba(99,102,241,0.25)' : '1px solid #2d3158',
                 }}
               >
-                {isManager && <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'block', mb: 0.3 }}>Менеджер</Typography>}
+                {isManager && !failed && <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'block', mb: 0.3 }}>Менеджер</Typography>}
+                {failed && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.3 }}>
+                    <ErrorOutlineIcon sx={{ fontSize: 14, color: '#ef4444' }} />
+                    <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 600 }}>Не доставлено</Typography>
+                  </Box>
+                )}
                 {isBot && <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block', mb: 0.3 }}>AI Bot</Typography>}
-                {msg.text && <Typography variant="body2" sx={{ color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>}
+                {msg.text && <Typography variant="body2" sx={{ color: failed ? '#fca5a5' : '#e2e8f0', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>}
                 {msg.attachment_url && msg.attachment_type === 'image' && (
                   <Box component="img" src={msg.attachment_url} alt="" sx={{ mt: 1, maxWidth: '100%', maxHeight: 400, borderRadius: '8px', display: 'block' }} />
                 )}
@@ -227,14 +231,18 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
                     </Typography>
                   </Box>
                 )}
-                {msg.delivered === false && (
-                  <Typography variant="caption" sx={{ color: '#f59e0b', fontSize: '0.6rem', display: 'block', mt: 0.3 }}>
-                    Не доставлено (вікно 24г)
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 0.3 }}>
+                  <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.6rem' }}>
+                    {new Date(msg.timestamp).toLocaleString('uk-UA')}
                   </Typography>
-                )}
-                <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.6rem', display: 'block', mt: 0.3 }}>
-                  {new Date(msg.timestamp).toLocaleString('uk-UA')}
-                </Typography>
+                  {failed && (
+                    <Tooltip title="Повторити відправку">
+                      <IconButton size="small" onClick={() => handleRetry(msg.id)} sx={{ color: '#f59e0b', ml: 1, p: 0.3 }}>
+                        <ReplayIcon sx={{ fontSize: 16 }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
               </Box>
             </Box>
           );
