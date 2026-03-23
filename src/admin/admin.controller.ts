@@ -202,12 +202,42 @@ export class AdminController {
     });
   }
 
+  @Post('managers')
+  async createManager(
+    @Body() body: { name: string; email: string; password: string; role?: string },
+  ) {
+    if (!body.email || !body.password || !body.name) {
+      throw new BadRequestException('Ім\'я, email та пароль обов\'язкові');
+    }
+    const existing = await this.prisma.manager.findFirst({ where: { email: body.email } });
+    if (existing) throw new BadRequestException('Email вже зайнятий');
+
+    const bcrypt = await import('bcrypt');
+    const password_hash = await bcrypt.hash(body.password, 10);
+    return this.prisma.manager.create({
+      data: {
+        name: body.name,
+        email: body.email,
+        password_hash,
+        telegram_id: `web_${Date.now()}`,
+        role: (body.role as ManagerRole) || 'manager',
+      },
+    });
+  }
+
   @Patch('managers/:id/role')
   async updateManagerRole(
     @Param('id', ParseIntPipe) id: number,
     @Body('role') role: ManagerRole,
   ) {
     return this.prisma.manager.update({ where: { id }, data: { role } });
+  }
+
+  @Delete('managers/:id')
+  async deleteManager(@Param('id', ParseIntPipe) id: number) {
+    await this.prisma.leadManager.deleteMany({ where: { manager_id: id } });
+    await this.prisma.manager.delete({ where: { id } });
+    return { ok: true };
   }
 
   // ─── SETTINGS ───────────────────────────────────────
