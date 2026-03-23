@@ -33,6 +33,7 @@
     "@types/passport-jwt": "^4.0.1",
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.9.0",
     "helmet": "^8.1.0",
     "openai": "^6.32.0",
     "passport": "^0.7.0",

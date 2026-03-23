@@ -326,11 +326,23 @@ export class AdminController {
     let attachmentType: string;
 
     if (file) {
-      // Convert uploaded file to base64 data URL
+      // Upload to Cloudinary
+      const { v2: cloudinary } = await import('cloudinary');
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'desfxxut8',
+        api_key: process.env.CLOUDINARY_API_KEY || '233841214681723',
+        api_secret: process.env.CLOUDINARY_API_SECRET || 'iNwSE0m1fJ4-kW3EoOXzP3bFMfA',
+      });
       const mimeType = file.mimetype || 'application/octet-stream';
-      const base64 = file.buffer.toString('base64');
-      attachmentUrl = `data:${mimeType};base64,${base64}`;
       attachmentType = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'file';
+      const uploadResult = await new Promise<any>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'mebelka', resource_type: attachmentType === 'image' ? 'image' : attachmentType === 'video' ? 'video' : 'raw' },
+          (err, result) => err ? reject(err) : resolve(result),
+        );
+        stream.end(file.buffer);
+      });
+      attachmentUrl = uploadResult.secure_url;
     } else if (url) {
       attachmentUrl = url;
       // Detect type from URL extension
@@ -346,14 +358,8 @@ export class AdminController {
       throw new BadRequestException('Потрібен файл або URL');
     }
 
-    // Try to send via Instagram (only URLs work for Instagram API, not data URLs)
-    let result: { ok: boolean; error?: string };
-    if (url || !file) {
-      result = await this.instagramService.sendAttachment(lead.instagram_id, attachmentUrl, attachmentType);
-    } else {
-      // For uploaded files, we can't send base64 to Instagram — just save locally
-      result = { ok: false, error: 'Файл збережено, але не відправлено в Instagram (підтримуються лише URL)' };
-    }
+    // Send via Instagram (Cloudinary URLs work, direct URLs work)
+    const result = await this.instagramService.sendAttachment(lead.instagram_id, attachmentUrl, attachmentType);
 
     const message = await this.prisma.message.create({
       data: {
