@@ -36,8 +36,24 @@ export const ChatsPage = () => {
   useEffect(() => {
     api.get(`${API}/leads?page=1&limit=100&sort_field=updatedAt&sort_order=desc`).then(res => {
       const data = res.data?.data || res.data || [];
-      setLeads(data.filter((l: any) => (l._count?.messages ?? 0) > 0));
+      const filtered = data.filter((l: any) => (l._count?.messages ?? 0) > 0);
+      setLeads(filtered);
       setLoading(false);
+
+      // Auto-open chat if leadId is in URL hash (e.g. #/chats?leadId=5)
+      const match = window.location.hash.match(/leadId=(\d+)/);
+      if (match) {
+        const id = parseInt(match[1]);
+        const lead = filtered.find((l: any) => l.id === id);
+        if (lead) {
+          setSelectedLead(lead);
+        } else {
+          // Lead not in list — fetch it directly
+          api.get(`${API}/leads/${id}`).then(r => {
+            if (r.data) setSelectedLead(r.data);
+          }).catch(() => {});
+        }
+      }
     }).catch(() => setLoading(false));
   }, []);
 
@@ -172,7 +188,11 @@ export const ChatsPage = () => {
               sx={{
                 display: 'flex', alignItems: 'center', gap: 1.5,
                 p: 1.5, borderRadius: '10px', cursor: 'pointer',
-                background: '#1a1d2e', border: '1px solid #2d3158',
+                background: '#1a1d2e',
+                borderLeft: `3px solid ${cfg.color}`,
+                borderRight: '1px solid #2d3158',
+                borderTop: '1px solid #2d3158',
+                borderBottom: '1px solid #2d3158',
                 '&:hover': { borderColor: '#6366f1', background: '#1e2235' },
                 transition: 'all 0.15s',
               }}

@@ -1,11 +1,9 @@
 import { Show, useShowContext, useNotify } from 'react-admin';
 import {
   Box, Typography, Card, CardContent, Chip,
-  TextField as MuiTextField, Button, Avatar, IconButton,
-  Dialog, DialogContent, AppBar, Toolbar as MuiToolbar, Badge,
+  TextField as MuiTextField, Button, Avatar, IconButton, Badge,
   Popover, Checkbox, FormControlLabel, CircularProgress,
 } from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import SendIcon from '@mui/icons-material/Send';
 import NotesIcon from '@mui/icons-material/Notes';
@@ -17,9 +15,8 @@ import AlarmIcon from '@mui/icons-material/Alarm';
 import SupervisorsIcon from '@mui/icons-material/SupervisorAccount';
 import PhoneIcon from '@mui/icons-material/Phone';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import api from '../../api';
 import { getStatusConfig } from '../../utils/statusMaps';
 
@@ -256,293 +253,6 @@ const RemindersPanel = ({ initialReminders, leadId }: { initialReminders: any[];
 };
 
 /* ------------------------------------------------------------------ */
-/*  Chat / Messages panel                                             */
-/* ------------------------------------------------------------------ */
-
-const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; leadId: number; maxH?: string }) => {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [text, setText] = useState('');
-  const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; dataUrl: string } | null>(null);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const notify = useNotify();
-  const textRef = useRef(text);
-  textRef.current = text;
-
-  const fetchMessages = useCallback(() => {
-    return api.get(`${API}/leads/${leadId}/messages?limit=200`).then(res => {
-      const data = res.data?.data || res.data || [];
-      return data;
-    });
-  }, [leadId]);
-
-  // Always fetch from API - don't trust react-admin cache
-  useEffect(() => {
-    fetchMessages().then(data => {
-      setMessages(data);
-      setLoaded(true);
-    }).catch(() => {
-      // Fallback to initialMessages (from getLead, which returns desc)
-      if (initialMessages?.length > 0) {
-        setMessages([...(initialMessages)].reverse());
-      }
-      setLoaded(true);
-    });
-  }, [fetchMessages]);
-
-  // Polling every 5 seconds for new messages
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchMessages().then(data => {
-        setMessages(prev => {
-          if (data.length !== prev.length || (data.length > 0 && prev.length > 0 && data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
-            return data;
-          }
-          return prev;
-        });
-      }).catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [fetchMessages]);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
-
-  const handleSend = useCallback(async () => {
-    const t = textRef.current;
-    if (!t.trim()) return;
-    const body = t.trim();
-    const tempMsg = { id: Date.now(), text: body, role: 'manager', timestamp: new Date().toISOString() };
-    setMessages(prev => [...prev, tempMsg]);
-    setText('');
-    try {
-      const res = await api.post(`${API}/leads/${leadId}/message`, { text: body });
-      const delivered = res.data.delivered !== false;
-      setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
-      notify(delivered ? 'Повідомлення відправлено' : 'Збережено, але не доставлено (вікно 24г)', { type: delivered ? 'success' : 'warning' });
-    } catch {
-      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-      notify('Помилка відправки', { type: 'error' });
-    }
-  }, [leadId, notify]);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      notify('Файл занадто великий (макс. 5MB)', { type: 'error' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachmentPreview({ file, dataUrl: reader.result as string });
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const handleSendAttachment = async () => {
-    if (!attachmentPreview) return;
-    setUploadingAttachment(true);
-    const formData = new FormData();
-    formData.append('file', attachmentPreview.file);
-
-    const isImage = attachmentPreview.file.type.startsWith('image/');
-    const tempMsg = {
-      id: Date.now(),
-      text: null,
-      role: 'manager',
-      delivered: true,
-      attachment_url: attachmentPreview.dataUrl,
-      attachment_type: isImage ? 'image' : 'file',
-      timestamp: new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, tempMsg]);
-    setAttachmentPreview(null);
-
-    try {
-      const res = await api.post(`${API}/leads/${leadId}/attachment`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const delivered = res.data.delivered !== false;
-      setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
-      notify(delivered ? 'Вкладення відправлено' : 'Збережено, але не доставлено', { type: delivered ? 'success' : 'warning' });
-    } catch {
-      setMessages(prev => prev.map(m => m.id === tempMsg.id ? { ...m, delivered: false, delivery_error: 'Помилка завантаження' } : m));
-      notify('Помилка відправки вкладення', { type: 'error' });
-    }
-    setUploadingAttachment(false);
-  };
-
-  const MessageBubble = ({ msg }: { msg: any }) => {
-    const isManager = msg.role === 'manager';
-    const isBot = msg.role === 'bot';
-    const alignRight = isBot || isManager;
-    const failed = isManager && msg.delivered === false;
-    const [imgOpen, setImgOpen] = useState(false);
-
-    return (
-      <Box sx={{ display: 'flex', justifyContent: alignRight ? 'flex-end' : 'flex-start' }}>
-        <Box
-          sx={{
-            maxWidth: { xs: '90%', sm: '75%', md: '65%' }, px: 2, py: 1,
-            borderRadius: alignRight ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-            background: failed ? 'rgba(239,68,68,0.1)' : isManager ? 'rgba(34,197,94,0.15)' : isBot ? 'rgba(99,102,241,0.15)' : '#1e2235',
-            border: failed ? '1px solid rgba(239,68,68,0.3)' : isManager ? '1px solid rgba(34,197,94,0.3)' : isBot ? '1px solid rgba(99,102,241,0.25)' : '1px solid #2d3158',
-          }}
-        >
-          {isManager && !failed && <Typography variant="caption" sx={{ color: '#22c55e', fontWeight: 600, display: 'block', mb: 0.5 }}>Менеджер</Typography>}
-          {failed && <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 600, display: 'block', mb: 0.5 }}>{msg.delivery_error || 'Не доставлено'}</Typography>}
-          {isBot && <Typography variant="caption" sx={{ color: '#818cf8', fontWeight: 600, display: 'block', mb: 0.5 }}>AI Bot</Typography>}
-          {msg.text && <Typography variant="body2" sx={{ color: '#e2e8f0', whiteSpace: 'pre-wrap' }}>{msg.text}</Typography>}
-
-          {msg.attachment_url && msg.attachment_type === 'image' && (
-            <>
-              <Box
-                component="img"
-                src={msg.attachment_url}
-                alt="attachment"
-                onClick={() => setImgOpen(true)}
-                sx={{ mt: 1, maxWidth: '100%', maxHeight: 300, borderRadius: '8px', display: 'block', cursor: 'pointer', '&:hover': { opacity: 0.85 } }}
-              />
-              <Dialog open={imgOpen} onClose={() => setImgOpen(false)} maxWidth="lg">
-                <Box component="img" src={msg.attachment_url} alt="full" sx={{ maxWidth: '90vw', maxHeight: '90vh' }} />
-              </Dialog>
-            </>
-          )}
-          {msg.attachment_url && msg.attachment_type !== 'image' && (
-            <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AttachFileIcon sx={{ fontSize: 14, color: '#818cf8' }} />
-              <Typography component="a" href={msg.attachment_url} target="_blank" rel="noopener noreferrer" variant="caption"
-                sx={{ color: '#818cf8', textDecoration: 'underline', '&:hover': { color: '#a5b4fc' } }}>
-                Вкладення
-              </Typography>
-            </Box>
-          )}
-          <Typography variant="caption" sx={{ color: '#475569', fontSize: '0.65rem', display: 'block', mt: 0.3 }}>
-            {new Date(msg.timestamp).toLocaleString('uk-UA')}
-          </Typography>
-        </Box>
-      </Box>
-    );
-  };
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: maxH || '100%' }}>
-      <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', pr: 1, mb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {messages.length === 0 && !loaded && (
-          <Typography variant="body2" sx={{ color: '#475569', textAlign: 'center', py: 3 }}>Завантаження...</Typography>
-        )}
-        {messages.length === 0 && loaded && (
-          <Typography variant="body2" sx={{ color: '#334155', textAlign: 'center', py: 3 }}>Повідомлень немає</Typography>
-        )}
-        {messages.map((msg: any) => <MessageBubble key={msg.id} msg={msg} />)}
-      </Box>
-      {/* Attachment preview */}
-      {attachmentPreview && (
-        <Box sx={{ mb: 1 }}>
-          <Box sx={{
-            display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5,
-            background: '#12151f', border: '1px solid #2d3158', borderRadius: '8px',
-          }}>
-            {attachmentPreview.file.type.startsWith('image/') ? (
-              <Box component="img" src={attachmentPreview.dataUrl} alt="preview" sx={{ maxHeight: 100, maxWidth: 180, borderRadius: '6px' }} />
-            ) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <AttachFileIcon sx={{ color: '#818cf8' }} />
-                <Typography variant="body2" sx={{ color: '#e2e8f0' }}>{attachmentPreview.file.name}</Typography>
-              </Box>
-            )}
-            <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
-              <Button
-                size="small" variant="contained"
-                onClick={handleSendAttachment}
-                disabled={uploadingAttachment}
-                sx={{ borderRadius: '6px', background: '#22c55e', '&:hover': { background: '#16a34a' }, minWidth: 36 }}
-              >
-                {uploadingAttachment ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <SendIcon fontSize="small" />}
-              </Button>
-              <IconButton size="small" onClick={() => setAttachmentPreview(null)} sx={{ color: '#ef4444' }}>
-                <CloseIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Box>
-          </Box>
-        </Box>
-      )}
-
-      <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-        <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style={{ display: 'none' }} />
-        <IconButton onClick={() => fileInputRef.current?.click()} sx={{ color: '#818cf8', '&:hover': { background: 'rgba(99,102,241,0.08)' } }}>
-          <AttachFileIcon fontSize="small" />
-        </IconButton>
-        <MuiTextField
-          fullWidth size="small" placeholder="Написати клієнту..."
-          value={text} onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-          sx={{ '& .MuiOutlinedInput-root': { background: '#12151f', borderRadius: '8px', '& fieldset': { borderColor: '#2d3158' } } }}
-        />
-        <Button variant="contained" onClick={handleSend} sx={{ borderRadius: '8px', minWidth: 50, background: '#22c55e', '&:hover': { background: '#16a34a' } }}>
-          <SendIcon fontSize="small" />
-        </Button>
-      </Box>
-    </Box>
-  );
-};
-
-/* ------------------------------------------------------------------ */
-/*  Chat dialog (fullscreen)                                           */
-/* ------------------------------------------------------------------ */
-
-const ChatDialog = ({ initialMessages, leadId, msgCount }: { initialMessages: any[]; leadId: number; msgCount: number }) => {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <Card
-        onClick={() => setOpen(true)}
-        sx={{
-          mb: 2, cursor: 'pointer', background: '#1a1d2e', border: '1px solid #2d3158',
-          '&:hover': { borderColor: '#6366f1', background: '#1e2235' },
-          transition: 'all 0.2s',
-        }}
-      >
-        <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: '12px !important' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Badge badgeContent={msgCount} color="primary" max={999}>
-              <ChatIcon sx={{ color: '#6366f1' }} />
-            </Badge>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#e2e8f0' }}>
-              Відкрити чат з клієнтом
-            </Typography>
-          </Box>
-          <OpenInFullIcon sx={{ color: '#64748b', fontSize: 20 }} />
-        </CardContent>
-      </Card>
-
-      <Dialog open={open} onClose={() => setOpen(false)} fullScreen PaperProps={{ sx: { background: '#0f1117' } }}>
-        <AppBar sx={{ position: 'relative', background: '#12151f', borderBottom: '1px solid #2d3158', boxShadow: 'none' }}>
-          <MuiToolbar sx={{ minHeight: '52px !important' }}>
-            <ChatIcon sx={{ color: '#6366f1', mr: 1.5 }} />
-            <Typography variant="subtitle1" sx={{ flex: 1, fontWeight: 700, color: '#e2e8f0' }}>
-              Чат з клієнтом
-            </Typography>
-            <IconButton edge="end" onClick={() => setOpen(false)} sx={{ color: '#94a3b8' }}>
-              <CloseIcon />
-            </IconButton>
-          </MuiToolbar>
-        </AppBar>
-        <DialogContent sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', maxWidth: 800, mx: 'auto', width: '100%' }}>
-          {open && <ChatPanel initialMessages={initialMessages} leadId={leadId} maxH="calc(100vh - 120px)" />}
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-};
-
-/* ------------------------------------------------------------------ */
 /*  Managers panel with add/remove                                     */
 /* ------------------------------------------------------------------ */
 
@@ -759,7 +469,26 @@ const LeadShowContent = () => {
       </Box>
 
       {/* ========== 3. BOTTOM: Chat button + History ========== */}
-      <ChatDialog initialMessages={record.messages ?? []} leadId={record.id} msgCount={record._count?.messages ?? 0} />
+      <Card
+        onClick={() => { window.location.hash = `#/chats?leadId=${record.id}`; }}
+        sx={{
+          mb: 2, cursor: 'pointer', background: '#1a1d2e', border: '1px solid #2d3158',
+          '&:hover': { borderColor: '#6366f1', background: '#1e2235' },
+          transition: 'all 0.2s',
+        }}
+      >
+        <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: '12px !important' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Badge badgeContent={record._count?.messages ?? 0} color="primary" max={999}>
+              <ChatIcon sx={{ color: '#6366f1' }} />
+            </Badge>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#e2e8f0' }}>
+              Відкрити чат з клієнтом
+            </Typography>
+          </Box>
+          <OpenInFullIcon sx={{ color: '#64748b', fontSize: 20 }} />
+        </CardContent>
+      </Card>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
 
