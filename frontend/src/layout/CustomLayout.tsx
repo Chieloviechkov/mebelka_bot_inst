@@ -125,10 +125,16 @@ export const CustomLayout = (props: any) => (
         borderRight: '1px solid #2d3158',
         height: '100vh',
         overflowX: 'hidden',
+        transition: 'width 0.2s',
       },
       '& .MuiDrawer-paper': {
         background: '#12151f !important',
         borderRight: '1px solid #2d3158 !important',
+        overflowX: 'hidden !important',
+      },
+      // Closed sidebar width fix
+      '& .RaSidebar-fixed[class*="closed"], & .MuiDrawer-paper[style*="width: 55"]': {
+        width: '55px !important',
       },
       // Menu root
       '& .RaMenu-root': {
@@ -137,6 +143,7 @@ export const CustomLayout = (props: any) => (
         display: 'flex',
         flexDirection: 'column',
         pt: 0,
+        overflowX: 'hidden',
       },
       // Menu items
       '& .RaMenuItemLink-root': {
