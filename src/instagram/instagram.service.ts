@@ -68,14 +68,17 @@ export class InstagramService {
             this.notification.notifyNewLead(lead.id).catch((err) =>
               this.logger.error('Помилка сповіщення про новий лід', err),
             );
-          } else if (senderProfile && (!lead.instagram_username || !lead.instagram_name)) {
-            lead = await this.prisma.lead.update({
-              where: { id: lead.id },
-              data: {
-                instagram_name: senderProfile.name || lead.instagram_name,
-                instagram_username: senderProfile.username || lead.instagram_username,
-              }
-            });
+          } else if (senderProfile) {
+            const updates: any = {};
+            if (senderProfile.username && senderProfile.username !== lead.instagram_username) {
+              updates.instagram_username = senderProfile.username;
+            }
+            if (senderProfile.name && senderProfile.name !== lead.instagram_name) {
+              updates.instagram_name = senderProfile.name;
+            }
+            if (Object.keys(updates).length > 0) {
+              lead = await this.prisma.lead.update({ where: { id: lead.id }, data: updates });
+            }
           }
 
           // Reset pending reminders when user replies
