@@ -280,10 +280,11 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
   useEffect(() => {
     api.get(`${API}/leads/${leadId}/messages?limit=200`).then(res => {
       const data = res.data?.data || res.data || [];
-      setMessages([...data].reverse());
+      // getMessages returns asc (chronological) - use as-is
+      setMessages(data);
       setLoaded(true);
     }).catch(() => {
-      // Fallback to initialMessages if API fails
+      // Fallback to initialMessages (from getLead, which returns desc)
       if (initialMessages?.length > 0) {
         setMessages([...(initialMessages)].reverse());
       }

@@ -144,7 +144,7 @@ const ChatFullscreen = ({ lead, onClose }: { lead: any; onClose: () => void }) =
   useEffect(() => {
     api.get(`${API}/leads/${lead.id}/messages?limit=200`).then(res => {
       const data = res.data?.data || res.data || [];
-      setMessages([...data].reverse());
+      setMessages(data);
       setLoaded(true);
     }).catch(() => setLoaded(true));
   }, [lead.id]);
