@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query, Header, Res,
-  ParseIntPipe, BadRequestException, ForbiddenException, InternalServerErrorException, UseGuards, Req,
+  ParseIntPipe, BadRequestException, InternalServerErrorException, UseGuards, Req,
   UseInterceptors, UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -36,14 +36,8 @@ export class AdminController {
   // ─── LEADS ──────────────────────────────────────────
 
   @Get('leads/export')
-  async exportLeadsCsv(@Req() req: any, @Res() res: Response) {
-    const user = req.user;
-    const where: any = {};
-    if (user.role === 'manager') {
-      where.leadManagers = { some: { manager_id: user.id } };
-    }
-
-    const leads = await this.prisma.lead.findMany({ where, orderBy: { createdAt: 'desc' } });
+  async exportLeadsCsv(@Res() res: Response) {
+    const leads = await this.prisma.lead.findMany({ orderBy: { createdAt: 'desc' } });
 
     const columns = [
       'id', 'instagram_name', 'instagram_username', 'phone', 'location',
@@ -64,7 +58,6 @@ export class AdminController {
 
   @Get('leads')
   async getLeads(
-    @Req() req: any,
     @Query('page') pageRaw = '1',
     @Query('limit') limitRaw = '10',
     @Query('status') status?: string,
@@ -90,11 +83,8 @@ export class AdminController {
       if (dateTo) where.createdAt.lte = new Date(dateTo);
     }
 
-    // Role-based filtering: managers only see their own leads
-    const user = req.user;
-    if (user.role === 'manager') {
-      where.leadManagers = { some: { manager_id: user.id } };
-    } else if (managerIdRaw) {
+    // Filter by manager if requested
+    if (managerIdRaw) {
       where.leadManagers = { some: { manager_id: parseInt(managerIdRaw) } };
     }
 
@@ -129,7 +119,7 @@ export class AdminController {
   }
 
   @Get('leads/:id')
-  async getLead(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+  async getLead(@Param('id', ParseIntPipe) id: number) {
     const lead = await this.prisma.lead.findUnique({
       where: { id },
       include: {
@@ -142,14 +132,6 @@ export class AdminController {
       },
     });
     if (!lead) throw new BadRequestException('Лід не знайдено');
-
-    // Role-based access: managers can only see leads assigned to them
-    const user = req.user;
-    if (user.role === 'manager') {
-      const isAssigned = lead.leadManagers.some((lm: any) => lm.manager_id === user.id);
-      if (!isAssigned) throw new ForbiddenException('Немає доступу до цього ліда');
-    }
-
     return lead;
   }
 
@@ -285,6 +267,7 @@ export class AdminController {
 
   @Post('leads/:id/message')
   async sendMessageToClient(
+    @Req() req: any,
     @Param('id', ParseIntPipe) id: number,
     @Body('text') text: string,
   ) {
@@ -292,6 +275,17 @@ export class AdminController {
 
     const lead = await this.prisma.lead.findUnique({ where: { id } });
     if (!lead) throw new BadRequestException('Лід не знайдено');
+
+    // Auto-assign manager on first message
+    const user = req.user;
+    const alreadyAssigned = await this.prisma.leadManager.findFirst({
+      where: { lead_id: id, manager_id: user.id },
+    });
+    if (!alreadyAssigned) {
+      await this.prisma.leadManager.create({
+        data: { lead_id: id, manager_id: user.id },
+      });
+    }
 
     const result = await this.instagramService.sendMessage(lead.instagram_id, text);
 
@@ -315,12 +309,24 @@ export class AdminController {
   @Post('leads/:id/attachment')
   @UseInterceptors(FileInterceptor('file'))
   async sendAttachmentToClient(
+    @Req() req: any,
     @Param('id', ParseIntPipe) id: number,
     @Body('url') url?: string,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
     if (!lead) throw new BadRequestException('Лід не знайдено');
+
+    // Auto-assign manager on first attachment
+    const user = req.user;
+    const alreadyAssigned = await this.prisma.leadManager.findFirst({
+      where: { lead_id: id, manager_id: user.id },
+    });
+    if (!alreadyAssigned) {
+      await this.prisma.leadManager.create({
+        data: { lead_id: id, manager_id: user.id },
+      });
+    }
 
     let attachmentUrl: string;
     let attachmentType: string;

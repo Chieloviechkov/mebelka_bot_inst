@@ -13,6 +13,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import CloseIcon from '@mui/icons-material/Close';
 import ForumIcon from '@mui/icons-material/Forum';
 import api from '../api';
 import { getStatusConfig } from '../utils/statusMaps';
@@ -140,10 +141,21 @@ export const ChatsPage = () => {
                   </Typography>
                   <Chip label={cfg.label} size="small" sx={{ height: 20, fontSize: '0.6rem', background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}` }} />
                 </Box>
-                <Typography variant="caption" sx={{ color: '#64748b' }}>
-                  @{lead.instagram_username || lead.instagram_id}
-                  {lead.phone && ` · ${lead.phone}`}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography variant="caption" sx={{ color: '#64748b' }}>
+                    @{lead.instagram_username || lead.instagram_id}
+                    {lead.phone && ` · ${lead.phone}`}
+                  </Typography>
+                  {lead.leadManagers?.length > 0 ? (
+                    <Chip
+                      label={lead.leadManagers.map((lm: any) => lm.manager?.name || 'M').join(', ')}
+                      size="small"
+                      sx={{ height: 18, fontSize: '0.55rem', background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}
+                    />
+                  ) : (
+                    <Chip label="Вільний" size="small" sx={{ height: 18, fontSize: '0.55rem', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }} />
+                  )}
+                </Box>
               </Box>
               <Badge badgeContent={msgCount} color="primary" max={999} sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem' } }} />
             </Box>
@@ -441,6 +453,24 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
               <OpenInNewIcon fontSize="small" />
             </IconButton>
           </Tooltip>
+          {assignedManagers.some((m: any) => {
+            const me = JSON.parse(localStorage.getItem('manager') || '{}');
+            return m.id === me.id;
+          }) && (
+            <Tooltip title="Закрити діалог">
+              <IconButton
+                onClick={async () => {
+                  const me = JSON.parse(localStorage.getItem('manager') || '{}');
+                  if (!me.id) return;
+                  await api.delete(`${API}/leads/${lead.id}/assign/${me.id}`);
+                  setAssignedManagers(prev => prev.filter((m: any) => m.id !== me.id));
+                }}
+                sx={{ color: '#ef4444', '&:hover': { background: 'rgba(239,68,68,0.1)' } }}
+              >
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
         {assignedManagers.length > 0 && (
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', ml: 7, mt: 0.5 }}>
