@@ -1,0 +1,22 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #0f1117;
+  color: #e2e8f0;
+}
+
+/* React-Admin dark theme overrides */
+:root {
+  --primary: #6366f1;
+  --primary-light: #818cf8;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --surface: #1a1d2e;
+  --surface-2: #252840;
+  --border: #2d3158;
+}
