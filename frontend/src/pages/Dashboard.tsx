@@ -90,6 +90,7 @@ export const Dashboard = () => {
   const needsClarification = byStatus.NeedsClarification ?? 0;
   const qualRate = analytics?.conversionRates?.qualifiedPercent ?? '0%';
   const newToday = analytics?.newToday ?? 0;
+  const activeToday = analytics?.activeToday ?? 0;
   const unreadChats = analytics?.unreadChats ?? 0;
   const managers = analytics?.managers ?? [];
 
@@ -157,7 +158,7 @@ export const Dashboard = () => {
       {/* Stat Cards — row 1 */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
         <StatCard title="Всього лідів" value={total} icon={<PeopleAltIcon />} color="#6366f1" subtitle="за весь час" />
-        <StatCard title="Нові сьогодні" value={newToday} icon={<TodayIcon />} color="#06b6d4" subtitle="створено за сьогодні" />
+        <StatCard title="Активних сьогодні" value={activeToday} icon={<TodayIcon />} color="#06b6d4" subtitle={newToday > 0 ? `+ ${newToday} нових лідів` : 'чатів з повідомленнями'} />
         <StatCard title="Непрочитані чати" value={unreadChats} icon={<MarkUnreadChatAltIcon />} color="#ef4444" subtitle="очікують відповіді" />
       </Box>
 
