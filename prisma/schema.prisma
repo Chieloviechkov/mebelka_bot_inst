@@ -73,11 +73,13 @@ model Message {
 }
 
 model Manager {
-  id          Int          @id @default(autoincrement())
-  telegram_id String       @unique
-  name        String?
-  role        ManagerRole  @default(manager)
-  leads       LeadManager[]
+  id            Int          @id @default(autoincrement())
+  telegram_id   String       @unique
+  name          String?
+  email         String?      @unique
+  password_hash String?
+  role          ManagerRole  @default(manager)
+  leads         LeadManager[]
 }
 
 model LeadManager {

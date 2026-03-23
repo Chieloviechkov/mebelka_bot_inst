@@ -1,11 +1,13 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
-  ParseIntPipe, BadRequestException, InternalServerErrorException,
+  ParseIntPipe, BadRequestException, InternalServerErrorException, UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InstagramService } from '../instagram/instagram.service';
 import { LeadStatus, FunnelStage, ManagerRole } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('admin')
 export class AdminController {
   constructor(

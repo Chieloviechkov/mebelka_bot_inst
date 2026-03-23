@@ -8,6 +8,7 @@ import { AiAssistantModule } from './ai-assistant/ai-assistant.module';
 import { NotificationModule } from './notification/notification.module';
 import { AdminModule } from './admin/admin.module';
 import { ReminderModule } from './reminder/reminder.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { ReminderModule } from './reminder/reminder.module';
     AiAssistantModule,
     InstagramModule,
     AdminModule,
-    ReminderModule
+    ReminderModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
