@@ -11,42 +11,39 @@ const CustomMenu = () => {
 
   return (
     <Menu>
-      {/* Logo */}
-      <Box sx={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #2d3158', gap: 1, overflow: 'hidden', px: open ? 1.5 : 0 }}>
-        <Box sx={{ width: 30, height: 30, minWidth: 30, borderRadius: '8px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <AutoAwesomeIcon sx={{ fontSize: 18, color: '#fff' }} />
+      {/* Logo — always visible, text hides when closed */}
+      <Box sx={{ height: 56, display: 'flex', alignItems: 'center', justifyContent: open ? 'flex-start' : 'center', px: open ? 1.5 : 0, borderBottom: '1px solid #2d3158', gap: 1, overflow: 'hidden' }}>
+        <Box sx={{ width: 28, height: 28, minWidth: 28, borderRadius: '7px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <AutoAwesomeIcon sx={{ fontSize: 15, color: '#fff' }} />
         </Box>
-        <Box sx={{ overflow: 'hidden', opacity: open ? 1 : 0, transition: 'opacity 0.2s', whiteSpace: 'nowrap' }}>
-          <Typography sx={{ fontWeight: 700, color: '#e2e8f0', fontSize: '0.85rem', lineHeight: 1.2 }}>Mebelka Bot</Typography>
-          <Typography sx={{ color: '#6366f1', fontSize: '0.65rem', fontWeight: 500 }}>Admin Panel</Typography>
-        </Box>
+        {open && (
+          <Box sx={{ overflow: 'hidden', whiteSpace: 'nowrap' }}>
+            <Typography sx={{ fontWeight: 700, color: '#e2e8f0', fontSize: '0.85rem', lineHeight: 1.2 }}>Mebelka Bot</Typography>
+            <Typography sx={{ color: '#6366f1', fontSize: '0.65rem', fontWeight: 500 }}>Admin Panel</Typography>
+          </Box>
+        )}
       </Box>
 
-      {/* Section CRM */}
-      <Box sx={{ height: open ? 'auto' : 0, overflow: 'hidden', transition: 'height 0.2s' }}>
-        <Typography sx={{ px: 2, pt: 1.5, pb: 0.5, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.6rem' }}>CRM</Typography>
-      </Box>
-      <Menu.DashboardItem primaryText="Дашборд" />
-      <Menu.ResourceItem name="leads" primaryText="Ліди" />
-      <Menu.Item to="/chats" primaryText="Чати" leftIcon={<ChatIcon />} />
+      <Typography sx={{ px: open ? 2 : 0, pt: 1.5, pb: 0.5, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.55rem', textAlign: open ? 'left' : 'center' }}>CRM</Typography>
+      <Menu.DashboardItem primaryText={open ? 'Дашборд' : ''} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
+      <Menu.ResourceItem name="leads" primaryText={open ? 'Ліди' : ''} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
+      <Menu.Item to="/chats" primaryText={open ? 'Чати' : ''} leftIcon={<ChatIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
 
-      {/* Section Management */}
-      <Box sx={{ height: open ? 'auto' : 0, overflow: 'hidden', transition: 'height 0.2s' }}>
-        <Typography sx={{ px: 2, pt: 1.5, pb: 0.5, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.6rem' }}>Управління</Typography>
-      </Box>
-      <Menu.Item to="/managers" primaryText="Менеджери" leftIcon={<SupervisorAccountIcon />} />
-      <Menu.Item to="/settings" primaryText="Налаштування" leftIcon={<SettingsIcon />} />
+      <Typography sx={{ px: open ? 2 : 0, pt: 1.5, pb: 0.5, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.55rem', textAlign: open ? 'left' : 'center' }}>{open ? 'Управління' : 'УПР'}</Typography>
+      <Menu.Item to="/managers" primaryText={open ? 'Менеджери' : ''} leftIcon={<SupervisorAccountIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
+      <Menu.Item to="/settings" primaryText={open ? 'Налаштування' : ''} leftIcon={<SettingsIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
 
-      {/* Spacer + User */}
       <Box sx={{ flex: 1 }} />
       {identity && (
-        <Box sx={{ height: 48, display: 'flex', alignItems: 'center', px: 1.5, borderTop: '1px solid #2d3158', gap: 1, overflow: 'hidden' }}>
-          <Avatar sx={{ width: 28, height: 28, minWidth: 28, background: '#6366f1', fontSize: '0.7rem', fontWeight: 700 }}>
+        <Box sx={{ height: 48, display: 'flex', alignItems: 'center', justifyContent: open ? 'flex-start' : 'center', px: open ? 1.5 : 0, borderTop: '1px solid #2d3158', gap: 1, overflow: 'hidden' }}>
+          <Avatar sx={{ width: 28, height: 28, minWidth: 28, background: '#6366f1', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
             {(identity.fullName || 'U')[0].toUpperCase()}
           </Avatar>
-          <Typography sx={{ opacity: open ? 1 : 0, transition: 'opacity 0.2s', color: '#94a3b8', fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {identity.fullName}
-          </Typography>
+          {open && (
+            <Typography sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {identity.fullName}
+            </Typography>
+          )}
         </Box>
       )}
     </Menu>
