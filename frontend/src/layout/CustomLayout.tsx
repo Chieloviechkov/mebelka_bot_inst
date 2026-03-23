@@ -3,6 +3,7 @@ import { Box, Typography, Avatar } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ChatIcon from '@mui/icons-material/Chat';
 
 const CustomMenu = () => {
   const [open] = useSidebarState();
@@ -66,6 +67,7 @@ const CustomMenu = () => {
 
       <Menu.DashboardItem primaryText="Дашборд" />
       <Menu.ResourceItem name="leads" primaryText="Ліди" />
+      <Menu.Item to="/chats" primaryText="Чати" leftIcon={<ChatIcon />} />
 
       {/* Section: Management */}
       {open && (

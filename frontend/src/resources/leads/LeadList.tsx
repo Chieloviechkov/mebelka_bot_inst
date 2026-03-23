@@ -1,8 +1,10 @@
 import {
   List, Datagrid, DateField, SearchInput, SelectInput, DateInput,
   FunctionField, ShowButton, EditButton, TopToolbar, FilterButton,
+  useRedirect,
 } from 'react-admin';
-import { Box, Typography, Chip, Avatar } from '@mui/material';
+import { Box, Typography, Chip, Avatar, IconButton, Tooltip } from '@mui/material';
+import ChatIcon from '@mui/icons-material/Chat';
 import InstagramIcon from '@mui/icons-material/Instagram';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import { AI_STATUS_CHOICES, ALL_STATUS_CHOICES, getStatusConfig } from '../../utils/statusMaps';
@@ -137,17 +139,29 @@ export const LeadList = () => (
         }}
       />
 
-      {/* Messages count */}
+      {/* Chat button */}
       <FunctionField
-        label="Повідомлень"
-        render={(record: any) => (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <ChatBubbleOutlineIcon sx={{ fontSize: 14, color: '#475569' }} />
-            <Typography variant="body2" sx={{ color: '#64748b' }}>
-              {record._count?.messages ?? 0}
-            </Typography>
-          </Box>
-        )}
+        label="Чат"
+        render={(record: any) => {
+          const count = record._count?.messages ?? 0;
+          return (
+            <Tooltip title="Відкрити чат">
+              <IconButton
+                size="small"
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  window.location.hash = `#/leads/${record.id}/show`;
+                }}
+                sx={{ color: count > 0 ? '#6366f1' : '#475569', '&:hover': { background: 'rgba(99,102,241,0.1)' } }}
+              >
+                <ChatBubbleOutlineIcon sx={{ fontSize: 16 }} />
+                <Typography variant="caption" sx={{ ml: 0.5, fontWeight: 600, fontSize: '0.75rem' }}>
+                  {count}
+                </Typography>
+              </IconButton>
+            </Tooltip>
+          );
+        }}
       />
 
       {/* Last update */}

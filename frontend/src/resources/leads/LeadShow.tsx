@@ -276,17 +276,19 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
   const textRef = useRef(text);
   textRef.current = text;
 
+  // Always fetch from API - don't trust react-admin cache
   useEffect(() => {
-    if (initialMessages?.length > 0) {
-      setMessages([...(initialMessages)].reverse());
+    api.get(`${API}/leads/${leadId}/messages?limit=200`).then(res => {
+      const data = res.data?.data || res.data || [];
+      setMessages([...data].reverse());
       setLoaded(true);
-    } else {
-      api.get(`${API}/leads/${leadId}/messages?limit=200`).then(res => {
-        const data = res.data?.data || res.data || [];
-        setMessages([...data].reverse());
-        setLoaded(true);
-      }).catch(() => setLoaded(true));
-    }
+    }).catch(() => {
+      // Fallback to initialMessages if API fails
+      if (initialMessages?.length > 0) {
+        setMessages([...(initialMessages)].reverse());
+      }
+      setLoaded(true);
+    });
   }, [leadId]);
 
   useEffect(() => {

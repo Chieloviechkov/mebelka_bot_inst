@@ -11,6 +11,7 @@ import { LeadEdit } from './resources/leads/LeadEdit';
 import { Dashboard } from './pages/Dashboard';
 import { ManagersPage } from './pages/ManagersPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ChatsPage } from './pages/ChatsPage';
 import { CustomLayout } from './layout/CustomLayout';
 import { LoginPage } from './pages/LoginPage';
 
@@ -111,6 +112,7 @@ export default function App() {
       <Resource name="managers" />
 
       <CustomRoutes>
+        <Route path="/chats" element={<ChatsPage />} />
         <Route path="/managers" element={<ManagersPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </CustomRoutes>
