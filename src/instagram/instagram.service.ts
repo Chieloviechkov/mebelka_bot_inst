@@ -123,13 +123,15 @@ export class InstagramService {
       this.logger.log(`Sent message to ${recipientId} via proxy, messageId: ${response.data?.messageId}`);
       return { ok: true };
     } catch (error: any) {
-      const errorMsg = error.response?.data?.message || error.message || '';
-      if (errorMsg.includes('outside of allowed window')) {
-        this.logger.warn(`Cannot send to ${recipientId}: messaging window expired (24h limit).`);
-        return { ok: false, error: 'Вікно 24 години вичерпано — клієнт має написати першим' };
+      const rawMsg = error.response?.data?.message || error.message || '';
+      const statusCode = error.response?.status;
+      this.logger.warn(`Send to ${recipientId} failed [${statusCode}]: ${rawMsg}`);
+
+      // Meta's 24h messaging window is the most common failure
+      if (rawMsg.includes('outside of allowed window') || (statusCode === 500 && rawMsg === 'Internal server error')) {
+        return { ok: false, error: 'Вікно 24 год. вичерпано — клієнт має написати першим' };
       }
-      this.logger.error(`Error sending message to ${recipientId}: ${JSON.stringify(error.response?.data || error.message)}`);
-      return { ok: false, error: errorMsg || 'Помилка відправки через Instagram' };
+      return { ok: false, error: rawMsg || 'Помилка відправки через Instagram' };
     }
   }
 }
