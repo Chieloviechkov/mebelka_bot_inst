@@ -26,6 +26,9 @@ export class AdminController {
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
     @Query('has_application') hasApplication?: string,
+    @Query('q') q?: string,
+    @Query('sort_field') sortField?: string,
+    @Query('sort_order') sortOrder?: string,
   ) {
     const page = parseInt(pageRaw) || 1;
     const limit = parseInt(limitRaw) || 10;
@@ -43,6 +46,18 @@ export class AdminController {
     if (managerIdRaw) {
       where.leadManagers = { some: { manager_id: parseInt(managerIdRaw) } };
     }
+    if (q) {
+      where.OR = [
+        { instagram_id: { contains: q, mode: 'insensitive' } },
+        { instagram_name: { contains: q, mode: 'insensitive' } },
+        { instagram_username: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const orderBy: any = sortField
+      ? { [sortField]: sortOrder === 'asc' ? 'asc' : 'desc' }
+      : { updatedAt: 'desc' };
 
     const [total, data] = await Promise.all([
       this.prisma.lead.count({ where }),
@@ -50,9 +65,11 @@ export class AdminController {
         where,
         skip,
         take: limit,
-        orderBy: { updatedAt: 'desc' },
+        orderBy,
         include: {
           notes: true,
+          reminders: true,
+          history: true,
           leadManagers: { include: { manager: true } },
           _count: { select: { messages: true } },
         },
@@ -60,6 +77,23 @@ export class AdminController {
     ]);
 
     return { total, page, limit, totalPages: Math.ceil(total / limit), data };
+  }
+
+  @Get('leads/:id')
+  async getLead(@Param('id', ParseIntPipe) id: number) {
+    const lead = await this.prisma.lead.findUnique({
+      where: { id },
+      include: {
+        notes: { orderBy: { createdAt: 'desc' } },
+        reminders: true,
+        history: { orderBy: { createdAt: 'desc' } },
+        leadManagers: { include: { manager: true } },
+        messages: { take: 200, orderBy: { timestamp: 'desc' } },
+        _count: { select: { messages: true } },
+      },
+    });
+    if (!lead) throw new BadRequestException('Лід не знайдено');
+    return lead;
   }
 
   @Patch('leads/:id/status')
@@ -87,12 +121,66 @@ export class AdminController {
     return updated;
   }
 
-  @Patch('leads/:id/note')
-  async addNote(
+  // ─── NOTES ────────────────────────────────────────────
+
+  @Get('leads/:id/notes')
+  async getNotes(@Param('id', ParseIntPipe) id: number) {
+    return this.prisma.note.findMany({
+      where: { lead_id: id },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  @Post('leads/:id/notes')
+  async createNote(
     @Param('id', ParseIntPipe) id: number,
     @Body('text') text: string,
   ) {
+    if (!text?.trim()) throw new BadRequestException('Текст нотатки обов\'язковий');
     return this.prisma.note.create({ data: { text, lead_id: id } });
+  }
+
+  @Delete('notes/:id')
+  async deleteNote(@Param('id', ParseIntPipe) id: number) {
+    await this.prisma.note.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  // ─── REMINDERS ────────────────────────────────────────
+
+  @Get('leads/:id/reminders')
+  async getReminders(@Param('id', ParseIntPipe) id: number) {
+    return this.prisma.reminder.findMany({
+      where: { lead_id: id },
+      orderBy: { time: 'asc' },
+    });
+  }
+
+  @Post('leads/:id/reminders')
+  async createReminder(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('time') time: string,
+  ) {
+    if (!time) throw new BadRequestException('Час нагадування обов\'язковий');
+    return this.prisma.reminder.create({
+      data: { time: new Date(time), lead_id: id },
+    });
+  }
+
+  @Delete('reminders/:id')
+  async deleteReminder(@Param('id', ParseIntPipe) id: number) {
+    await this.prisma.reminder.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  // ─── HISTORY ──────────────────────────────────────────
+
+  @Get('leads/:id/history')
+  async getHistory(@Param('id', ParseIntPipe) id: number) {
+    return this.prisma.history.findMany({
+      where: { lead_id: id },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   // ─── MESSAGES ───────────────────────────────────────
@@ -251,6 +339,8 @@ export class AdminController {
       MAX_PRICE_PER_SQM: '50000',
       MIN_TIMELINE_DAYS: '7',
       AI_ENABLED: 'false',
+      COMPANY_ADDRESSES: '[{"name":"Правий берег","address":"ТЦ \\"Будинок Меблів\\" бульвар Миколи Міхновського, 23","map":"https://maps.app.goo.gl/xZaRPfUSqtc8gDHk6"},{"name":"Лівий берег","address":"ТЦ \\"Ваш Дім\\" вулиця Катерини Гандзюк, 2","map":"https://maps.app.goo.gl/bmX8wx9WZxubZFve8"},{"name":"Офіс","address":"Харківське шоссе 201/203","map":"https://maps.app.goo.gl/6SwyvAQgmQ6HZ2iV8"}]',
+      AI_SYSTEM_PROMPT: '',
     };
     const result: Record<string, string> = { ...defaults };
     for (const s of settings) result[s.key] = s.value;
@@ -259,7 +349,10 @@ export class AdminController {
 
   @Patch('settings')
   async updateSettings(@Body() body: Record<string, string>) {
-    const allowed = ['MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM', 'MIN_TIMELINE_DAYS', 'AI_ENABLED'];
+    const allowed = [
+      'MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM',
+      'MIN_TIMELINE_DAYS', 'AI_ENABLED', 'COMPANY_ADDRESSES', 'AI_SYSTEM_PROMPT',
+    ];
     const updated: Record<string, string> = {};
     for (const key of allowed) {
       if (body[key] !== undefined) {
