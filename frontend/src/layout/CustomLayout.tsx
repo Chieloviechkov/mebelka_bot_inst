@@ -1,5 +1,5 @@
-import { Layout, Menu, useGetIdentity, useSidebarState } from 'react-admin';
-import { Box, Typography, Avatar } from '@mui/material';
+import { Layout, Menu, useGetIdentity, usePermissions, useSidebarState } from 'react-admin';
+import { Box, Typography, Avatar, Chip } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -8,6 +8,9 @@ import ChatIcon from '@mui/icons-material/Chat';
 const CustomMenu = () => {
   const [open] = useSidebarState();
   const { data: identity } = useGetIdentity();
+  const { permissions: role } = usePermissions();
+
+  const isSupermanager = role === 'supermanager';
 
   return (
     <Menu>
@@ -29,9 +32,13 @@ const CustomMenu = () => {
       <Menu.ResourceItem name="leads" primaryText={open ? 'Ліди' : ''} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
       <Menu.Item to="/chats" primaryText={open ? 'Чати' : ''} leftIcon={<ChatIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
 
-      <Typography sx={{ px: open ? 2 : 0, pt: 1.5, pb: 0.5, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.55rem', textAlign: open ? 'left' : 'center' }}>{open ? 'Управління' : 'УПР'}</Typography>
-      <Menu.Item to="/managers" primaryText={open ? 'Менеджери' : ''} leftIcon={<SupervisorAccountIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
-      <Menu.Item to="/settings" primaryText={open ? 'Налаштування' : ''} leftIcon={<SettingsIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
+      {isSupermanager && (
+        <>
+          <Typography sx={{ px: open ? 2 : 0, pt: 1.5, pb: 0.5, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.55rem', textAlign: open ? 'left' : 'center' }}>{open ? 'Управління' : 'УПР'}</Typography>
+          <Menu.Item to="/managers" primaryText={open ? 'Менеджери' : ''} leftIcon={<SupervisorAccountIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
+          <Menu.Item to="/settings" primaryText={open ? 'Налаштування' : ''} leftIcon={<SettingsIcon />} sx={!open ? { justifyContent: 'center', pl: 1.5, pr: 0, '& .MuiListItemIcon-root': { minWidth: 0 } } : {}} />
+        </>
+      )}
 
       <Box sx={{ flex: 1 }} />
       {identity && (
@@ -40,9 +47,18 @@ const CustomMenu = () => {
             {(identity.fullName || 'U')[0].toUpperCase()}
           </Avatar>
           {open && (
-            <Typography sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {identity.fullName}
-            </Typography>
+            <Box sx={{ overflow: 'hidden' }}>
+              <Typography sx={{ color: '#94a3b8', fontSize: '0.75rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {identity.fullName}
+              </Typography>
+              {isSupermanager && (
+                <Chip
+                  label="Адмін"
+                  size="small"
+                  sx={{ height: 16, fontSize: '0.6rem', fontWeight: 700, background: 'rgba(245,158,11,0.15)', color: '#f59e0b', '& .MuiChip-label': { px: 0.8 } }}
+                />
+              )}
+            </Box>
           )}
         </Box>
       )}

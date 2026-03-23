@@ -11,6 +11,7 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import GroupsIcon from '@mui/icons-material/Groups';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { usePermissions, useRedirect } from 'react-admin';
 import api from '../api';
 
 const API = import.meta.env.VITE_API_URL || '/admin';
@@ -21,6 +22,14 @@ const ROLES: Record<string, { label: string; color: string; bg: string }> = {
 };
 
 export const ManagersPage = () => {
+  const { permissions: role } = usePermissions();
+  const redirect = useRedirect();
+
+  useEffect(() => {
+    if (role && role !== 'supermanager') {
+      redirect('/');
+    }
+  }, [role, redirect]);
   const [managers, setManagers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);

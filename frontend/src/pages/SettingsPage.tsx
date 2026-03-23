@@ -11,6 +11,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { usePermissions, useRedirect } from 'react-admin';
 import api from '../api';
 
 interface CompanyAddress {
@@ -28,6 +29,14 @@ const inputSx = {
 };
 
 export const SettingsPage = () => {
+  const { permissions: role } = usePermissions();
+  const redirect = useRedirect();
+
+  useEffect(() => {
+    if (role && role !== 'supermanager') {
+      redirect('/');
+    }
+  }, [role, redirect]);
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [addresses, setAddresses] = useState<CompanyAddress[]>([]);
   const [loading, setLoading] = useState(true);

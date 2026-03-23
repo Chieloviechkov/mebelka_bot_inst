@@ -133,13 +133,34 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
     return () => window.removeEventListener('popstate', handlePop);
   }, [onBack]);
 
-  useEffect(() => {
-    api.get(`${API}/leads/${lead.id}/messages?limit=200`).then(res => {
+  const fetchMessages = useCallback(() => {
+    return api.get(`${API}/leads/${lead.id}/messages?limit=200`).then(res => {
       const data = res.data?.data || res.data || [];
+      return data;
+    });
+  }, [lead.id]);
+
+  useEffect(() => {
+    fetchMessages().then(data => {
       setMessages(data);
       setLoaded(true);
     }).catch(() => setLoaded(true));
-  }, [lead.id]);
+  }, [fetchMessages]);
+
+  // Polling every 5 seconds for new messages
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchMessages().then(data => {
+        setMessages(prev => {
+          if (data.length !== prev.length || (data.length > 0 && prev.length > 0 && data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+            return data;
+          }
+          return prev;
+        });
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchMessages]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

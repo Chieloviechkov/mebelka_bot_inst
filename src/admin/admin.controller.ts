@@ -1,11 +1,13 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query,
-  ParseIntPipe, BadRequestException, InternalServerErrorException, UseGuards,
+  ParseIntPipe, BadRequestException, ForbiddenException, InternalServerErrorException, UseGuards, Req,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InstagramService } from '../instagram/instagram.service';
 import { LeadStatus, FunnelStage, ManagerRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('admin')
@@ -15,10 +17,24 @@ export class AdminController {
     private readonly instagramService: InstagramService,
   ) {}
 
+  // ─── ME ────────────────────────────────────────────
+
+  @Get('me')
+  async getMe(@Req() req: any) {
+    const user = req.user;
+    const manager = await this.prisma.manager.findUnique({
+      where: { id: user.id },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    if (!manager) throw new BadRequestException('Менеджер не знайдений');
+    return manager;
+  }
+
   // ─── LEADS ──────────────────────────────────────────
 
   @Get('leads')
   async getLeads(
+    @Req() req: any,
     @Query('page') pageRaw = '1',
     @Query('limit') limitRaw = '10',
     @Query('status') status?: string,
@@ -43,9 +59,15 @@ export class AdminController {
       if (dateFrom) where.createdAt.gte = new Date(dateFrom);
       if (dateTo) where.createdAt.lte = new Date(dateTo);
     }
-    if (managerIdRaw) {
+
+    // Role-based filtering: managers only see their own leads
+    const user = req.user;
+    if (user.role === 'manager') {
+      where.leadManagers = { some: { manager_id: user.id } };
+    } else if (managerIdRaw) {
       where.leadManagers = { some: { manager_id: parseInt(managerIdRaw) } };
     }
+
     if (q) {
       where.OR = [
         { instagram_id: { contains: q, mode: 'insensitive' } },
@@ -77,7 +99,7 @@ export class AdminController {
   }
 
   @Get('leads/:id')
-  async getLead(@Param('id', ParseIntPipe) id: number) {
+  async getLead(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
     const lead = await this.prisma.lead.findUnique({
       where: { id },
       include: {
@@ -90,6 +112,14 @@ export class AdminController {
       },
     });
     if (!lead) throw new BadRequestException('Лід не знайдено');
+
+    // Role-based access: managers can only see leads assigned to them
+    const user = req.user;
+    if (user.role === 'manager') {
+      const isAssigned = lead.leadManagers.some((lm: any) => lm.manager_id === user.id);
+      if (!isAssigned) throw new ForbiddenException('Немає доступу до цього ліда');
+    }
+
     return lead;
   }
 
@@ -316,6 +346,8 @@ export class AdminController {
   }
 
   @Post('managers')
+  @Roles('supermanager')
+  @UseGuards(RolesGuard)
   async createManager(
     @Body() body: { name: string; email: string; password: string; role?: string },
   ) {
@@ -339,6 +371,8 @@ export class AdminController {
   }
 
   @Patch('managers/:id/role')
+  @Roles('supermanager')
+  @UseGuards(RolesGuard)
   async updateManagerRole(
     @Param('id', ParseIntPipe) id: number,
     @Body('role') role: ManagerRole,
@@ -347,6 +381,8 @@ export class AdminController {
   }
 
   @Delete('managers/:id')
+  @Roles('supermanager')
+  @UseGuards(RolesGuard)
   async deleteManager(@Param('id', ParseIntPipe) id: number) {
     await this.prisma.leadManager.deleteMany({ where: { manager_id: id } });
     await this.prisma.manager.delete({ where: { id } });
@@ -356,6 +392,8 @@ export class AdminController {
   // ─── SETTINGS ───────────────────────────────────────
 
   @Get('settings')
+  @Roles('supermanager')
+  @UseGuards(RolesGuard)
   async getSettings() {
     const settings = await this.prisma.setting.findMany();
     const defaults: Record<string, string> = {
@@ -373,6 +411,8 @@ export class AdminController {
   }
 
   @Patch('settings')
+  @Roles('supermanager')
+  @UseGuards(RolesGuard)
   async updateSettings(@Body() body: Record<string, string>) {
     const allowed = [
       'MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM',

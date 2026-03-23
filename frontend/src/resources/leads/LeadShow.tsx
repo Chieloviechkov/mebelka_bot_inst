@@ -266,11 +266,16 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
   const textRef = useRef(text);
   textRef.current = text;
 
+  const fetchMessages = useCallback(() => {
+    return api.get(`${API}/leads/${leadId}/messages?limit=200`).then(res => {
+      const data = res.data?.data || res.data || [];
+      return data;
+    });
+  }, [leadId]);
+
   // Always fetch from API - don't trust react-admin cache
   useEffect(() => {
-    api.get(`${API}/leads/${leadId}/messages?limit=200`).then(res => {
-      const data = res.data?.data || res.data || [];
-      // getMessages returns asc (chronological) - use as-is
+    fetchMessages().then(data => {
       setMessages(data);
       setLoaded(true);
     }).catch(() => {
@@ -280,7 +285,22 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
       }
       setLoaded(true);
     });
-  }, [leadId]);
+  }, [fetchMessages]);
+
+  // Polling every 5 seconds for new messages
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchMessages().then(data => {
+        setMessages(prev => {
+          if (data.length !== prev.length || (data.length > 0 && prev.length > 0 && data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+            return data;
+          }
+          return prev;
+        });
+      }).catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchMessages]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

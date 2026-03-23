@@ -23,11 +23,12 @@ export const authProvider: AuthProvider = {
 
   checkError: async (error: any) => {
     const status = error?.status || error?.response?.status || error?.body?.statusCode;
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('manager');
       throw new Error('Session expired');
     }
+    // 403 = forbidden (role-based), don't logout — user is authenticated but lacks permission
   },
 
   getIdentity: async () => {
