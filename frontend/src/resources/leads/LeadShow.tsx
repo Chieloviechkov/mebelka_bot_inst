@@ -267,11 +267,15 @@ const RemindersPanel = ({ initialReminders, leadId }: { initialReminders: any[];
 /*  Chat / Messages panel                                             */
 /* ------------------------------------------------------------------ */
 
-const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; leadId: number }) => {
+const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; leadId: number; maxH?: string }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [text, setText] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const notify = useNotify();
+  const textRef = useRef(text);
+  textRef.current = text;
 
-  // Always fetch messages from API to avoid react-admin cache issues
   useEffect(() => {
     if (initialMessages?.length > 0) {
       setMessages([...(initialMessages)].reverse());
@@ -284,29 +288,28 @@ const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; le
       }).catch(() => setLoaded(true));
     }
   }, [leadId]);
-  const [text, setText] = useState('');
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const notify = useNotify();
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   const handleSend = useCallback(async () => {
-    if (!text.trim()) return;
-    const body = text.trim();
+    const t = textRef.current;
+    if (!t.trim()) return;
+    const body = t.trim();
     const tempMsg = { id: Date.now(), text: body, role: 'manager', timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, tempMsg]);
     setText('');
     try {
       const res = await api.post(`${API}/leads/${leadId}/message`, { text: body });
+      const delivered = res.data.delivered !== false;
       setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
-      notify('Повідомлення відправлено', { type: 'success' });
+      notify(delivered ? 'Повідомлення відправлено' : 'Збережено, але не доставлено (вікно 24г)', { type: delivered ? 'success' : 'warning' });
     } catch {
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       notify('Помилка відправки', { type: 'error' });
     }
-  }, [text, leadId, notify]);
+  }, [leadId, notify]);
 
   const MessageBubble = ({ msg }: { msg: any }) => {
     const isManager = msg.role === 'manager';
@@ -359,7 +362,7 @@ const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; le
     );
   };
 
-  const ChatContent = ({ maxH }: { maxH?: string | number }) => (
+  return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: maxH || '100%' }}>
       <Box ref={scrollRef} sx={{ flex: 1, overflowY: 'auto', pr: 1, mb: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {messages.length === 0 && !loaded && (
@@ -374,7 +377,7 @@ const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; le
         <MuiTextField
           fullWidth size="small" placeholder="Написати клієнту..."
           value={text} onChange={e => setText(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
           sx={{ '& .MuiOutlinedInput-root': { background: '#12151f', borderRadius: '8px', '& fieldset': { borderColor: '#2d3158' } } }}
         />
         <Button variant="contained" onClick={handleSend} sx={{ borderRadius: '8px', minWidth: 50, background: '#22c55e', '&:hover': { background: '#16a34a' } }}>
@@ -383,8 +386,6 @@ const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; le
       </Box>
     </Box>
   );
-
-  return { messages, ChatContent, msgCount: messages.length };
 };
 
 /* ------------------------------------------------------------------ */
@@ -393,11 +394,9 @@ const MessagesPanel = ({ initialMessages, leadId }: { initialMessages: any[]; le
 
 const ChatDialog = ({ initialMessages, leadId, msgCount }: { initialMessages: any[]; leadId: number; msgCount: number }) => {
   const [open, setOpen] = useState(false);
-  const panel = MessagesPanel({ initialMessages, leadId });
 
   return (
     <>
-      {/* Open chat button */}
       <Card
         onClick={() => setOpen(true)}
         sx={{
@@ -408,7 +407,7 @@ const ChatDialog = ({ initialMessages, leadId, msgCount }: { initialMessages: an
       >
         <CardContent sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: '12px !important' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Badge badgeContent={panel.msgCount || msgCount} color="primary" max={999}>
+            <Badge badgeContent={msgCount} color="primary" max={999}>
               <ChatIcon sx={{ color: '#6366f1' }} />
             </Badge>
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#e2e8f0' }}>
@@ -419,13 +418,7 @@ const ChatDialog = ({ initialMessages, leadId, msgCount }: { initialMessages: an
         </CardContent>
       </Card>
 
-      {/* Fullscreen dialog */}
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        fullScreen
-        PaperProps={{ sx: { background: '#0f1117' } }}
-      >
+      <Dialog open={open} onClose={() => setOpen(false)} fullScreen PaperProps={{ sx: { background: '#0f1117' } }}>
         <AppBar sx={{ position: 'relative', background: '#12151f', borderBottom: '1px solid #2d3158', boxShadow: 'none' }}>
           <MuiToolbar sx={{ minHeight: '52px !important' }}>
             <ChatIcon sx={{ color: '#6366f1', mr: 1.5 }} />
@@ -438,7 +431,7 @@ const ChatDialog = ({ initialMessages, leadId, msgCount }: { initialMessages: an
           </MuiToolbar>
         </AppBar>
         <DialogContent sx={{ p: { xs: 1.5, sm: 3 }, display: 'flex', flexDirection: 'column', maxWidth: 800, mx: 'auto', width: '100%' }}>
-          <panel.ChatContent maxH="calc(100vh - 120px)" />
+          {open && <ChatPanel initialMessages={initialMessages} leadId={leadId} maxH="calc(100vh - 120px)" />}
         </DialogContent>
       </Dialog>
     </>

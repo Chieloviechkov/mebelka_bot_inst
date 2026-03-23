@@ -233,7 +233,7 @@ export class AdminController {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
     if (!lead) throw new BadRequestException('Лід не знайдено');
 
-    await this.instagramService.sendMessage(lead.instagram_id, text);
+    const sent = await this.instagramService.sendMessage(lead.instagram_id, text);
 
     const message = await this.prisma.message.create({
       data: { text, sender_id: 'manager', role: 'manager', lead_id: id },
@@ -249,7 +249,7 @@ export class AdminController {
       });
     }
 
-    return message;
+    return { ...message, delivered: sent };
   }
 
   // ─── MANAGER ASSIGNMENT ─────────────────────────────
