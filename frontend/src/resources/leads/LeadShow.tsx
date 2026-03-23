@@ -263,7 +263,10 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
   const [messages, setMessages] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState('');
+  const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; dataUrl: string } | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const notify = useNotify();
   const textRef = useRef(text);
   textRef.current = text;
@@ -325,6 +328,54 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
       notify('Помилка відправки', { type: 'error' });
     }
   }, [leadId, notify]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      notify('Файл занадто великий (макс. 5MB)', { type: 'error' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachmentPreview({ file, dataUrl: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleSendAttachment = async () => {
+    if (!attachmentPreview) return;
+    setUploadingAttachment(true);
+    const formData = new FormData();
+    formData.append('file', attachmentPreview.file);
+
+    const isImage = attachmentPreview.file.type.startsWith('image/');
+    const tempMsg = {
+      id: Date.now(),
+      text: null,
+      role: 'manager',
+      delivered: true,
+      attachment_url: attachmentPreview.dataUrl,
+      attachment_type: isImage ? 'image' : 'file',
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
+    setAttachmentPreview(null);
+
+    try {
+      const res = await api.post(`${API}/leads/${leadId}/attachment`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const delivered = res.data.delivered !== false;
+      setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
+      notify(delivered ? 'Вкладення відправлено' : 'Збережено, але не доставлено', { type: delivered ? 'success' : 'warning' });
+    } catch {
+      setMessages(prev => prev.map(m => m.id === tempMsg.id ? { ...m, delivered: false, delivery_error: 'Помилка завантаження' } : m));
+      notify('Помилка відправки вкладення', { type: 'error' });
+    }
+    setUploadingAttachment(false);
+  };
 
   const MessageBubble = ({ msg }: { msg: any }) => {
     const isManager = msg.role === 'manager';
@@ -390,7 +441,43 @@ const ChatPanel = ({ initialMessages, leadId, maxH }: { initialMessages: any[]; 
         )}
         {messages.map((msg: any) => <MessageBubble key={msg.id} msg={msg} />)}
       </Box>
+      {/* Attachment preview */}
+      {attachmentPreview && (
+        <Box sx={{ mb: 1 }}>
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5,
+            background: '#12151f', border: '1px solid #2d3158', borderRadius: '8px',
+          }}>
+            {attachmentPreview.file.type.startsWith('image/') ? (
+              <Box component="img" src={attachmentPreview.dataUrl} alt="preview" sx={{ maxHeight: 100, maxWidth: 180, borderRadius: '6px' }} />
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <AttachFileIcon sx={{ color: '#818cf8' }} />
+                <Typography variant="body2" sx={{ color: '#e2e8f0' }}>{attachmentPreview.file.name}</Typography>
+              </Box>
+            )}
+            <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
+              <Button
+                size="small" variant="contained"
+                onClick={handleSendAttachment}
+                disabled={uploadingAttachment}
+                sx={{ borderRadius: '6px', background: '#22c55e', '&:hover': { background: '#16a34a' }, minWidth: 36 }}
+              >
+                {uploadingAttachment ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <SendIcon fontSize="small" />}
+              </Button>
+              <IconButton size="small" onClick={() => setAttachmentPreview(null)} sx={{ color: '#ef4444' }}>
+                <CloseIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
       <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+        <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style={{ display: 'none' }} />
+        <IconButton onClick={() => fileInputRef.current?.click()} sx={{ color: '#818cf8', '&:hover': { background: 'rgba(99,102,241,0.08)' } }}>
+          <AttachFileIcon fontSize="small" />
+        </IconButton>
         <MuiTextField
           fullWidth size="small" placeholder="Написати клієнту..."
           value={text} onChange={e => setText(e.target.value)}

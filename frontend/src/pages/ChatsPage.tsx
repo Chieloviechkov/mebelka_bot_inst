@@ -289,7 +289,10 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState('');
   const [assignedManagers, setAssignedManagers] = useState<any[]>([]);
+  const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; dataUrl: string } | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef(text);
   textRef.current = text;
 
@@ -365,6 +368,53 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
       const res = await api.post(`${API}/messages/${msgId}/retry`);
       setMessages(prev => prev.map(m => (m.id === msgId ? res.data : m)));
     } catch { /* ignore */ }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Файл занадто великий (макс. 5MB)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachmentPreview({ file, dataUrl: reader.result as string });
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleSendAttachment = async () => {
+    if (!attachmentPreview) return;
+    setUploadingAttachment(true);
+    const formData = new FormData();
+    formData.append('file', attachmentPreview.file);
+
+    const isImage = attachmentPreview.file.type.startsWith('image/');
+    const tempMsg = {
+      id: Date.now(),
+      text: null,
+      role: 'manager',
+      delivered: true,
+      attachment_url: attachmentPreview.dataUrl,
+      attachment_type: isImage ? 'image' : 'file',
+      timestamp: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
+    setAttachmentPreview(null);
+
+    try {
+      const res = await api.post(`${API}/leads/${lead.id}/attachment`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || 'Помилка завантаження';
+      setMessages(prev => prev.map(m => m.id === tempMsg.id ? { ...m, delivered: false, delivery_error: errMsg } : m));
+    }
+    setUploadingAttachment(false);
   };
 
   return (
@@ -466,8 +516,46 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
         })}
       </Box>
 
+      {/* Attachment preview */}
+      {attachmentPreview && (
+        <Box sx={{ pt: 1, maxWidth: 800, mx: 'auto', width: '100%' }}>
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5,
+            background: '#1a1d2e', border: '1px solid #2d3158', borderRadius: '10px',
+          }}>
+            {attachmentPreview.file.type.startsWith('image/') ? (
+              <Box component="img" src={attachmentPreview.dataUrl} alt="preview" sx={{ maxHeight: 120, maxWidth: 200, borderRadius: '8px' }} />
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <AttachFileIcon sx={{ color: '#818cf8' }} />
+                <Typography variant="body2" sx={{ color: '#e2e8f0' }}>{attachmentPreview.file.name}</Typography>
+              </Box>
+            )}
+            <Box sx={{ ml: 'auto', display: 'flex', gap: 0.5 }}>
+              <Button
+                size="small" variant="contained"
+                onClick={handleSendAttachment}
+                disabled={uploadingAttachment}
+                sx={{ borderRadius: '8px', background: '#22c55e', '&:hover': { background: '#16a34a' }, minWidth: 40 }}
+              >
+                {uploadingAttachment ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <SendIcon fontSize="small" />}
+              </Button>
+              <IconButton size="small" onClick={() => setAttachmentPreview(null)} sx={{ color: '#ef4444' }}>
+                <Typography variant="caption" sx={{ fontWeight: 700 }}>X</Typography>
+              </IconButton>
+            </Box>
+          </Box>
+        </Box>
+      )}
+
       {/* Input */}
       <Box sx={{ display: 'flex', gap: 1, pt: 1.5, flexShrink: 0, maxWidth: 800, mx: 'auto', width: '100%' }}>
+        <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" style={{ display: 'none' }} />
+        <Tooltip title="Прикріпити файл">
+          <IconButton onClick={() => fileInputRef.current?.click()} sx={{ color: '#818cf8', '&:hover': { background: 'rgba(99,102,241,0.1)' } }}>
+            <AttachFileIcon />
+          </IconButton>
+        </Tooltip>
         <TextField
           fullWidth size="small" placeholder="Написати клієнту..."
           value={text} onChange={e => setText(e.target.value)}

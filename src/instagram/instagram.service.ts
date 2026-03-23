@@ -128,6 +128,47 @@ export class InstagramService {
     }
   }
 
+  async sendAttachment(
+    recipientId: string,
+    fileUrl: string,
+    type: string,
+  ): Promise<{ ok: boolean; error?: string }> {
+    try {
+      // Try sending as attachment via Rubikon proxy
+      const response = await axios.post(
+        this.proxyInstagramSendUrl,
+        {
+          recipientId,
+          attachment: { type, payload: { url: fileUrl } },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.proxyApiSecret}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      this.logger.log(`Sent attachment to ${recipientId} via proxy, messageId: ${response.data?.messageId}`);
+      return { ok: true };
+    } catch (error: any) {
+      const rawMsg = error.response?.data?.message || error.message || '';
+      const statusCode = error.response?.status;
+      this.logger.warn(`Attachment send to ${recipientId} failed [${statusCode}]: ${rawMsg}`);
+
+      // Fallback: send the URL as plain text
+      this.logger.log(`Falling back to sending attachment URL as text to ${recipientId}`);
+      const fallback = await this.sendMessage(recipientId, fileUrl);
+      if (fallback.ok) {
+        return { ok: true };
+      }
+
+      if (rawMsg.includes('outside of allowed window') || (statusCode === 500 && rawMsg === 'Internal server error')) {
+        return { ok: false, error: 'Вікно 24 год. вичерпано — клієнт має написати першим' };
+      }
+      return { ok: false, error: rawMsg || 'Помилка відправки вкладення через Instagram' };
+    }
+  }
+
   async sendMessage(recipientId: string, text: string): Promise<{ ok: boolean; error?: string }> {
     try {
       const response = await axios.post(

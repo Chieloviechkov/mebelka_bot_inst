@@ -1,7 +1,9 @@
 import {
   Controller, Get, Post, Patch, Delete, Body, Param, Query, Header, Res,
   ParseIntPipe, BadRequestException, ForbiddenException, InternalServerErrorException, UseGuards, Req,
+  UseInterceptors, UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { InstagramService } from '../instagram/instagram.service';
@@ -295,6 +297,75 @@ export class AdminController {
 
     const message = await this.prisma.message.create({
       data: { text, sender_id: 'manager', role: 'manager', lead_id: id, delivered: result.ok, delivery_error: result.error || null },
+    });
+
+    // Track funnel: first manager message = KontaktMenedzhera
+    const hasManagerContact = await this.prisma.history.findFirst({
+      where: { lead_id: id, funnel_stage: FunnelStage.KontaktMenedzhera },
+    });
+    if (!hasManagerContact) {
+      await this.prisma.history.create({
+        data: { lead_id: id, action: 'Менеджер вперше написав клієнту', funnel_stage: FunnelStage.KontaktMenedzhera },
+      });
+    }
+
+    return message;
+  }
+
+  @Post('leads/:id/attachment')
+  @UseInterceptors(FileInterceptor('file'))
+  async sendAttachmentToClient(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('url') url?: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const lead = await this.prisma.lead.findUnique({ where: { id } });
+    if (!lead) throw new BadRequestException('Лід не знайдено');
+
+    let attachmentUrl: string;
+    let attachmentType: string;
+
+    if (file) {
+      // Convert uploaded file to base64 data URL
+      const mimeType = file.mimetype || 'application/octet-stream';
+      const base64 = file.buffer.toString('base64');
+      attachmentUrl = `data:${mimeType};base64,${base64}`;
+      attachmentType = mimeType.startsWith('image/') ? 'image' : mimeType.startsWith('video/') ? 'video' : 'file';
+    } else if (url) {
+      attachmentUrl = url;
+      // Detect type from URL extension
+      const lower = url.toLowerCase();
+      if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/.test(lower)) {
+        attachmentType = 'image';
+      } else if (/\.(mp4|mov|avi|webm)(\?|$)/.test(lower)) {
+        attachmentType = 'video';
+      } else {
+        attachmentType = 'file';
+      }
+    } else {
+      throw new BadRequestException('Потрібен файл або URL');
+    }
+
+    // Try to send via Instagram (only URLs work for Instagram API, not data URLs)
+    let result: { ok: boolean; error?: string };
+    if (url || !file) {
+      result = await this.instagramService.sendAttachment(lead.instagram_id, attachmentUrl, attachmentType);
+    } else {
+      // For uploaded files, we can't send base64 to Instagram — just save locally
+      result = { ok: false, error: 'Файл збережено, але не відправлено в Instagram (підтримуються лише URL)' };
+    }
+
+    const message = await this.prisma.message.create({
+      data: {
+        text: null,
+        sender_id: 'manager',
+        role: 'manager',
+        lead_id: id,
+        attachment_url: attachmentUrl,
+        attachment_type: attachmentType,
+        delivered: result.ok,
+        delivery_error: result.error || null,
+      },
     });
 
     // Track funnel: first manager message = KontaktMenedzhera
