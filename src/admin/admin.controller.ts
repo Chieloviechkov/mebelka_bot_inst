@@ -218,6 +218,7 @@ export class AdminController {
       MIN_PRICE_PER_SQM: '2000',
       MAX_PRICE_PER_SQM: '50000',
       MIN_TIMELINE_DAYS: '7',
+      AI_ENABLED: 'false',
     };
     const result: Record<string, string> = { ...defaults };
     for (const s of settings) result[s.key] = s.value;
@@ -226,7 +227,7 @@ export class AdminController {
 
   @Patch('settings')
   async updateSettings(@Body() body: Record<string, string>) {
-    const allowed = ['MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM', 'MIN_TIMELINE_DAYS'];
+    const allowed = ['MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM', 'MIN_TIMELINE_DAYS', 'AI_ENABLED'];
     const updated: Record<string, string> = {};
     for (const key of allowed) {
       if (body[key] !== undefined) {

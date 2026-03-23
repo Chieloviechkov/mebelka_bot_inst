@@ -87,20 +87,25 @@ export class InstagramService {
             }
           });
 
-          // Process via AI (disabled while OpenAI quota is empty)
-          // if (text) {
-          //   const botReply = await this.aiAssistant.processUserMessage(lead.id, text, attachmentUrl ? '[Клієнт надіслав фото]' : undefined);
-          //   await this.sendMessage(senderId, botReply);
-          // }
+          // Check if AI is enabled
+          const aiSetting = await this.prisma.setting.findUnique({ where: { key: 'AI_ENABLED' } });
+          const aiEnabled = aiSetting?.value === 'true';
+
+          if (aiEnabled && text) {
+            const botReply = await this.aiAssistant.processUserMessage(lead.id, text, attachmentUrl ? '[Клієнт надіслав фото]' : undefined);
+            await this.sendMessage(senderId, botReply);
+          }
 
           this.logger.log(`Message saved for lead ${lead.id}`);
 
-          // Create 24h reminder
-          const reminderTime = new Date();
-          reminderTime.setHours(reminderTime.getHours() + 24);
-          await this.prisma.reminder.create({
-            data: { lead_id: lead.id, time: reminderTime, status: 'pending' }
-          });
+          // Create 23h reminder only if AI is active (23h to stay within Meta's 24h messaging window)
+          if (aiEnabled) {
+            const reminderTime = new Date();
+            reminderTime.setHours(reminderTime.getHours() + 23);
+            await this.prisma.reminder.create({
+              data: { lead_id: lead.id, time: reminderTime, status: 'pending' }
+            });
+          }
         }
       }
     } catch (error) {
@@ -108,7 +113,7 @@ export class InstagramService {
     }
   }
 
-  async sendMessage(recipientId: string, text: string) {
+  async sendMessage(recipientId: string, text: string): Promise<boolean> {
     try {
       const response = await axios.post(
         this.proxyInstagramSendUrl,
@@ -116,8 +121,15 @@ export class InstagramService {
         { headers: { Authorization: `Bearer ${this.proxyApiSecret}`, 'Content-Type': 'application/json' } },
       );
       this.logger.log(`Sent message to ${recipientId} via proxy, messageId: ${response.data?.messageId}`);
+      return true;
     } catch (error: any) {
-      this.logger.error(`Error sending message to ${recipientId}: ${JSON.stringify(error.response?.data || error.message)}`);
+      const errorMsg = error.response?.data?.message || error.message || '';
+      if (errorMsg.includes('outside of allowed window')) {
+        this.logger.warn(`Cannot send to ${recipientId}: messaging window expired (24h limit).`);
+      } else {
+        this.logger.error(`Error sending message to ${recipientId}: ${JSON.stringify(error.response?.data || error.message)}`);
+      }
+      return false;
     }
   }
 }

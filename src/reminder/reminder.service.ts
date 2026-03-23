@@ -13,9 +13,20 @@ export class ReminderService {
     private readonly instagramService: InstagramService,
   ) {}
 
+  private async isAiEnabled(): Promise<boolean> {
+    const setting = await this.prisma.setting.findUnique({ where: { key: 'AI_ENABLED' } });
+    return setting?.value === 'true';
+  }
+
   @Cron(CronExpression.EVERY_HOUR)
   async handleCron() {
     this.logger.log('Starting 24h follow-up check...');
+
+    const aiEnabled = await this.isAiEnabled();
+    if (!aiEnabled) {
+      this.logger.log('AI is disabled — skipping reminders.');
+      return;
+    }
 
     try {
       const pendingReminders = await this.prisma.reminder.findMany({
@@ -32,17 +43,19 @@ export class ReminderService {
           continue;
         }
 
-        await this.instagramService.sendMessage(
+        const sent = await this.instagramService.sendMessage(
           reminder.lead.instagram_id,
           'Добрий день! Ви ще тут? Ми готові відповісти на всі ваші питання щодо меблів! 🪑',
         );
 
         await this.prisma.reminder.update({
           where: { id: reminder.id },
-          data: { status: 'sent' },
+          data: { status: sent ? 'sent' : 'failed' },
         });
 
-        this.logger.log(`Follow up sent to lead ${reminder.lead.id}`);
+        if (sent) {
+          this.logger.log(`Follow up sent to lead ${reminder.lead.id}`);
+        }
       }
     } catch (error) {
       this.logger.error('Error in reminder cron', error);
