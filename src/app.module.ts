@@ -10,6 +10,7 @@ import { NotificationModule } from './notification/notification.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { ReminderModule } from './reminder/reminder.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ChatModule } from './chat/chat.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from './auth/auth.module.js';
     AdminModule,
     ReminderModule,
     AuthModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

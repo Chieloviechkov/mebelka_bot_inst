@@ -14,8 +14,11 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import CloseIcon from '@mui/icons-material/Close';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ForumIcon from '@mui/icons-material/Forum';
 import api from '../api';
+import { getSocket } from '../socket';
 import { getStatusConfig } from '../utils/statusMaps';
 
 const API = '/admin';
@@ -24,17 +27,42 @@ export const ChatsPage = () => {
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [showClosed, setShowClosed] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [messageResults, setMessageResults] = useState<any[]>([]);
   const [searchingMessages, setSearchingMessages] = useState(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    api.get(`${API}/leads?page=1&limit=50&sort_field=updatedAt&sort_order=desc`).then(res => {
+    api.get(`${API}/leads?page=1&limit=100&sort_field=updatedAt&sort_order=desc`).then(res => {
       const data = res.data?.data || res.data || [];
       setLeads(data.filter((l: any) => (l._count?.messages ?? 0) > 0));
       setLoading(false);
     }).catch(() => setLoading(false));
+  }, []);
+
+  // WebSocket: listen for new messages to update lead list
+  useEffect(() => {
+    const socket = getSocket();
+    const handler = ({ leadId }: { leadId: number }) => {
+      setLeads(prev => {
+        const idx = prev.findIndex(l => l.id === leadId);
+        if (idx >= 0) {
+          const updated = [...prev];
+          const lead = { ...updated[idx], updatedAt: new Date().toISOString(), _count: { ...updated[idx]._count, messages: (updated[idx]._count?.messages ?? 0) + 1 } };
+          updated.splice(idx, 1);
+          updated.unshift(lead);
+          return updated;
+        }
+        // New lead with message — reload
+        api.get(`${API}/leads/${leadId}`).then(res => {
+          if (res.data) setLeads(p => [{ ...res.data, _count: { messages: 1 } }, ...p]);
+        }).catch(() => {});
+        return prev;
+      });
+    };
+    socket.on('newMessage', handler);
+    return () => { socket.off('newMessage', handler); };
   }, []);
 
   // Debounced message search
@@ -71,13 +99,14 @@ export const ChatsPage = () => {
     setSelectedLead(existingLead || { id: lead.id, instagram_name: lead.instagram_name, instagram_username: lead.instagram_username });
   };
 
-  const filtered = search
+  const filtered = (search
     ? leads.filter(l =>
         (l.instagram_name || '').toLowerCase().includes(search.toLowerCase()) ||
         (l.instagram_username || '').toLowerCase().includes(search.toLowerCase()) ||
         (l.phone || '').includes(search)
       )
-    : leads;
+    : leads
+  ).filter(l => showClosed || l.status !== 'closed');
 
   if (loading) {
     return (
@@ -101,12 +130,29 @@ export const ChatsPage = () => {
         <Typography variant="body2" sx={{ color: '#475569' }}>Історія переписок з клієнтами</Typography>
       </Box>
 
-      <TextField
-        fullWidth size="small" placeholder="Пошук чату або повідомлення..."
-        value={search} onChange={e => setSearch(e.target.value)}
-        slotProps={{ input: { startAdornment: <SearchIcon sx={{ color: '#475569', mr: 1 }} /> } }}
-        sx={{ mb: 2, '& .MuiOutlinedInput-root': { background: '#1a1d2e', borderRadius: '10px', '& fieldset': { borderColor: '#2d3158' } } }}
-      />
+      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+        <TextField
+          fullWidth size="small" placeholder="Пошук чату або повідомлення..."
+          value={search} onChange={e => setSearch(e.target.value)}
+          slotProps={{ input: { startAdornment: <SearchIcon sx={{ color: '#475569', mr: 1 }} /> } }}
+          sx={{ '& .MuiOutlinedInput-root': { background: '#1a1d2e', borderRadius: '10px', '& fieldset': { borderColor: '#2d3158' } } }}
+        />
+        <Tooltip title={showClosed ? 'Сховати закриті' : 'Показати закриті'}>
+          <IconButton
+            onClick={() => setShowClosed(v => !v)}
+            sx={{
+              color: showClosed ? '#f59e0b' : '#475569',
+              background: showClosed ? 'rgba(245,158,11,0.1)' : 'transparent',
+              border: '1px solid',
+              borderColor: showClosed ? 'rgba(245,158,11,0.3)' : '#2d3158',
+              borderRadius: '10px',
+              width: 40, height: 40,
+            }}
+          >
+            {showClosed ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+      </Box>
 
       <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         {filtered.length === 0 && messageResults.length === 0 && !searchingMessages && (
@@ -143,8 +189,8 @@ export const ChatsPage = () => {
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Typography variant="caption" sx={{ color: '#64748b' }}>
-                    @{lead.instagram_username || lead.instagram_id}
-                    {lead.phone && ` · ${lead.phone}`}
+                    {lead.instagram_username ? `@${lead.instagram_username}` : ''}
+                    {lead.phone && `${lead.instagram_username ? ' · ' : ''}${lead.phone}`}
                   </Typography>
                   {lead.leadManagers?.length > 0 ? (
                     <Chip
@@ -307,6 +353,8 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textRef = useRef(text);
   textRef.current = text;
+  // Track IDs of messages we sent optimistically to avoid WS duplicates
+  const sentIdsRef = useRef<Set<number>>(new Set());
 
   const name = lead.instagram_name || lead.instagram_username || lead.instagram_id;
 
@@ -339,20 +387,24 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
     }).catch(() => setLoaded(true));
   }, [fetchMessages]);
 
-  // Polling every 5 seconds for new messages
+  // WebSocket: real-time messages
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchMessages().then(data => {
-        setMessages(prev => {
-          if (data.length !== prev.length || (data.length > 0 && prev.length > 0 && data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
-            return data;
-          }
-          return prev;
-        });
-      }).catch(() => {});
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [fetchMessages]);
+    const socket = getSocket();
+    const handler = ({ leadId, message }: { leadId: number; message: any }) => {
+      if (leadId !== lead.id) return;
+      // Skip if we already have this message (sent by us)
+      if (sentIdsRef.current.has(message.id)) {
+        sentIdsRef.current.delete(message.id);
+        return;
+      }
+      setMessages(prev => {
+        if (prev.some(m => m.id === message.id)) return prev;
+        return [...prev, message];
+      });
+    };
+    socket.on('newMessage', handler);
+    return () => { socket.off('newMessage', handler); };
+  }, [lead.id]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -362,16 +414,17 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
     const t = textRef.current;
     if (!t.trim()) return;
     const body = t.trim();
-    const tempMsg = { id: Date.now(), text: body, role: 'manager', delivered: true, timestamp: new Date().toISOString() };
+    const tempId = Date.now();
+    const tempMsg = { id: tempId, text: body, role: 'manager', delivered: true, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, tempMsg]);
     setText('');
     try {
       const res = await api.post(`${API}/leads/${lead.id}/message`, { text: body });
-      setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
+      sentIdsRef.current.add(res.data.id);
+      setMessages(prev => prev.map(m => (m.id === tempId ? res.data : m)));
     } catch (err: any) {
-      // Show failed message instead of removing
       const errMsg = err.response?.data?.message || 'Помилка сервера';
-      setMessages(prev => prev.map(m => m.id === tempMsg.id ? { ...m, delivered: false, delivery_error: errMsg } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, delivered: false, delivery_error: errMsg } : m));
     }
   }, [lead.id]);
 
@@ -394,7 +447,6 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
       setAttachmentPreview({ file, dataUrl: reader.result as string });
     };
     reader.readAsDataURL(file);
-    // Reset input so same file can be selected again
     e.target.value = '';
   };
 
@@ -405,8 +457,9 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
     formData.append('file', attachmentPreview.file);
 
     const isImage = attachmentPreview.file.type.startsWith('image/');
+    const tempId = Date.now();
     const tempMsg = {
-      id: Date.now(),
+      id: tempId,
       text: null,
       role: 'manager',
       delivered: true,
@@ -421,10 +474,11 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
       const res = await api.post(`${API}/leads/${lead.id}/attachment`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
+      sentIdsRef.current.add(res.data.id);
+      setMessages(prev => prev.map(m => (m.id === tempId ? res.data : m)));
     } catch (err: any) {
       const errMsg = err.response?.data?.message || 'Помилка завантаження';
-      setMessages(prev => prev.map(m => m.id === tempMsg.id ? { ...m, delivered: false, delivery_error: errMsg } : m));
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, delivered: false, delivery_error: errMsg } : m));
     }
     setUploadingAttachment(false);
   };

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { PrismaService } from '../prisma/prisma.service';
 import { QualificationService } from '../qualification/qualification.service';
+import { ChatGateway } from '../chat/chat.gateway';
 
 @Injectable()
 export class AiAssistantService {
@@ -67,7 +68,8 @@ export class AiAssistantService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly qualificationService: QualificationService
+    private readonly qualificationService: QualificationService,
+    private readonly chatGateway: ChatGateway,
   ) {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY || 'dummy_string',
@@ -147,10 +149,11 @@ export class AiAssistantService {
 
       const botReply = responseMessage.content || 'Зачекайте хвилинку, ми обробляємо ваш запит...';
 
-      await this.prisma.message.create({
+      const botMessage = await this.prisma.message.create({
         data: { text: botReply, sender_id: 'bot', role: 'bot', lead_id: leadId },
       });
 
+      this.chatGateway.emitNewMessage(leadId, botMessage);
       return botReply;
     } catch (error) {
       this.logger.error('Error in AiAssistantService:', error);

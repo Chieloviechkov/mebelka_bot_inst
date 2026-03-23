@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiAssistantService } from '../ai-assistant/ai-assistant.service.js';
 import { NotificationService } from '../notification/notification.service.js';
+import { ChatGateway } from '../chat/chat.gateway.js';
 import { FunnelStage } from '@prisma/client';
 import axios from 'axios';
 
@@ -15,6 +16,7 @@ export class InstagramService {
     private readonly prisma: PrismaService,
     private readonly aiAssistant: AiAssistantService,
     private readonly notification: NotificationService,
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   async processWebhook(body: any) {
@@ -83,7 +85,7 @@ export class InstagramService {
           });
 
           // Save message
-          await this.prisma.message.create({
+          const savedMessage = await this.prisma.message.create({
             data: {
               text,
               sender_id: senderId,
@@ -93,6 +95,12 @@ export class InstagramService {
               attachment_type: attachmentType,
             }
           });
+
+          // Emit via WebSocket
+          this.chatGateway.emitNewMessage(lead.id, savedMessage);
+          if (isNewLead) {
+            this.chatGateway.emitLeadUpdate(lead.id, { type: 'newLead' });
+          }
 
           // Notify assigned managers about new message
           if (!isNewLead) {

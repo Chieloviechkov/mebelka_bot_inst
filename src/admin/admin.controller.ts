@@ -7,6 +7,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { InstagramService } from '../instagram/instagram.service';
+import { ChatGateway } from '../chat/chat.gateway';
 import { LeadStatus, FunnelStage, ManagerRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -18,6 +19,7 @@ export class AdminController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly instagramService: InstagramService,
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   // ─── ME ────────────────────────────────────────────
@@ -303,6 +305,7 @@ export class AdminController {
       });
     }
 
+    this.chatGateway.emitNewMessage(id, message);
     return message;
   }
 
@@ -390,6 +393,7 @@ export class AdminController {
       });
     }
 
+    this.chatGateway.emitNewMessage(id, message);
     return message;
   }
 
