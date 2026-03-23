@@ -155,8 +155,10 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
     try {
       const res = await api.post(`${API}/leads/${lead.id}/message`, { text: body });
       setMessages(prev => prev.map(m => (m.id === tempMsg.id ? res.data : m)));
-    } catch {
-      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
+    } catch (err: any) {
+      // Show failed message instead of removing
+      const errMsg = err.response?.data?.message || 'Помилка сервера';
+      setMessages(prev => prev.map(m => m.id === tempMsg.id ? { ...m, delivered: false, delivery_error: errMsg } : m));
     }
   }, [lead.id]);
 
