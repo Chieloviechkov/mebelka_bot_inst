@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-admin';
 import {
-  Box, Card, CardContent, Typography,
-  Button, Skeleton,
+  Box, Card, CardContent, Typography, Avatar,
+  Button, Skeleton, LinearProgress,
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -14,6 +14,8 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import HourglassTopIcon from '@mui/icons-material/HourglassTop';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import TodayIcon from '@mui/icons-material/Today';
+import MarkUnreadChatAltIcon from '@mui/icons-material/MarkUnreadChatAlt';
 import api from '../api';
 import { ALL_STATUSES } from '../utils/statusMaps';
 
@@ -87,6 +89,9 @@ export const Dashboard = () => {
   const perspective = byStatus.Perspektive ?? 0;
   const needsClarification = byStatus.NeedsClarification ?? 0;
   const qualRate = analytics?.conversionRates?.qualifiedPercent ?? '0%';
+  const newToday = analytics?.newToday ?? 0;
+  const unreadChats = analytics?.unreadChats ?? 0;
+  const managers = analytics?.managers ?? [];
 
   // Build pie data from byStatus using ALL_STATUSES from statusMaps
   const pieData = Object.entries(byStatus).map(([key, val]) => {
@@ -123,6 +128,8 @@ export const Dashboard = () => {
     );
   }
 
+  const maxLeads = Math.max(...managers.map((m: any) => m.leads), 1);
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
@@ -147,15 +154,21 @@ export const Dashboard = () => {
         </Box>
       )}
 
-      {/* Stat Cards */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
+      {/* Stat Cards — row 1 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
         <StatCard title="Всього лідів" value={total} icon={<PeopleAltIcon />} color="#6366f1" subtitle="за весь час" />
+        <StatCard title="Нові сьогодні" value={newToday} icon={<TodayIcon />} color="#06b6d4" subtitle="створено за сьогодні" />
+        <StatCard title="Непрочитані чати" value={unreadChats} icon={<MarkUnreadChatAltIcon />} color="#ef4444" subtitle="очікують відповіді" />
+      </Box>
+
+      {/* Stat Cards — row 2 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
         <StatCard title="Перспективних" value={perspective} icon={<CheckCircleOutlineIcon />} color="#22c55e" subtitle="готові до роботи" />
         <StatCard title="Кваліфікація" value={qualRate} icon={<TrendingUpIcon />} color="#818cf8" subtitle="від усіх заявок" />
         <StatCard title="Уточнення" value={needsClarification} icon={<HourglassTopIcon />} color="#f59e0b" subtitle="потребують відповіді" />
       </Box>
 
-      {/* Charts */}
+      {/* Charts + Managers */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' }, gap: 2, mb: 3 }}>
         {/* Funnel Bar Chart */}
         <Card>
@@ -241,6 +254,45 @@ export const Dashboard = () => {
           </CardContent>
         </Card>
       </Box>
+
+      {/* Managers leaderboard */}
+      {managers.length > 0 && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.08em', mb: 2 }}>
+              Менеджери
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {managers.map((m: any) => (
+                <Box key={m.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  <Avatar sx={{ width: 32, height: 32, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', fontWeight: 700, fontSize: '0.8rem' }}>
+                    {(m.name || 'M')[0].toUpperCase()}
+                  </Avatar>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.3 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#e2e8f0', fontSize: '0.85rem' }}>
+                        {m.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 700 }}>
+                        {m.leads}
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant="determinate"
+                      value={(m.leads / maxLeads) * 100}
+                      sx={{
+                        height: 6, borderRadius: 3,
+                        background: '#1e2235',
+                        '& .MuiLinearProgress-bar': { background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', borderRadius: 3 },
+                      }}
+                    />
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Link */}
       <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>

@@ -602,6 +602,27 @@ export class AdminController {
     const qualifiedCount = (statusMap['Perspektive'] || 0);
     const qualifiedPercent = totalLeads > 0 ? ((qualifiedCount / totalLeads) * 100).toFixed(1) : '0';
 
+    // New leads today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const newToday = await this.prisma.lead.count({ where: { createdAt: { gte: todayStart } } });
+
+    // Managers with lead counts
+    const managersWithLeads = await this.prisma.manager.findMany({
+      select: { id: true, name: true, email: true, _count: { select: { leads: true } } },
+      orderBy: { leads: { _count: 'desc' } },
+    });
+
+    // Unread chats: leads with last message from user (no manager reply after)
+    const leadsWithRecentUserMsg = await this.prisma.lead.findMany({
+      where: { messages: { some: { role: 'user' } } },
+      select: {
+        id: true,
+        messages: { orderBy: { timestamp: 'desc' }, take: 1, select: { role: true } },
+      },
+    });
+    const unreadChats = leadsWithRecentUserMsg.filter(l => l.messages[0]?.role === 'user').length;
+
     return {
       totalLeads,
       byStatus: statusMap,
@@ -616,6 +637,9 @@ export class AdminController {
         kontaktToUgoda: kontaktCount > 0 ? `${((ugodaCount / kontaktCount) * 100).toFixed(1)}%` : '0%',
         overallConversion: zayavkaCount > 0 ? `${((ugodaCount / zayavkaCount) * 100).toFixed(1)}%` : '0%',
       },
+      newToday,
+      unreadChats,
+      managers: managersWithLeads.map(m => ({ id: m.id, name: m.name || m.email, leads: m._count.leads })),
     };
   }
 }

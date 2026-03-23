@@ -403,8 +403,10 @@ const LeadShowContent = () => {
             />
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
-            {record.instagram_id && (
-              <Typography variant="body2" sx={{ color: '#94a3b8' }}>@{record.instagram_id}</Typography>
+            {(record.instagram_username || record.instagram_id) && (
+              <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                {record.instagram_username ? `@${record.instagram_username}` : ''}
+              </Typography>
             )}
             {record.phone && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

@@ -193,7 +193,7 @@ export const ChatsPage = () => {
                 borderRight: '1px solid #2d3158',
                 borderTop: '1px solid #2d3158',
                 borderBottom: '1px solid #2d3158',
-                '&:hover': { borderColor: '#6366f1', background: '#1e2235' },
+                '&:hover': { borderRight: '1px solid #6366f1', borderTop: '1px solid #6366f1', borderBottom: '1px solid #6366f1', background: '#1e2235' },
                 transition: 'all 0.15s',
               }}
             >
