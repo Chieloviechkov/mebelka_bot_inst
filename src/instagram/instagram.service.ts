@@ -87,7 +87,7 @@ export class InstagramService {
             data: { status: 'cancelled' }
           });
 
-          // Save message
+          // Save message and touch lead's updatedAt so it sorts to the top
           const savedMessage = await this.prisma.message.create({
             data: {
               text,
@@ -97,6 +97,10 @@ export class InstagramService {
               attachment_url: attachmentUrl,
               attachment_type: attachmentType,
             }
+          });
+          await this.prisma.lead.update({
+            where: { id: lead.id },
+            data: { updatedAt: new Date() },
           });
 
           // Emit via WebSocket
@@ -113,24 +117,25 @@ export class InstagramService {
             );
           }
 
+          this.logger.log(`Message saved for lead ${lead.id}`);
+
           // Check if AI is enabled
           const aiSetting = await this.prisma.setting.findUnique({ where: { key: 'AI_ENABLED' } });
           const aiEnabled = aiSetting?.value === 'true';
 
-          if (aiEnabled && text) {
-            const botReply = await this.aiAssistant.processUserMessage(lead.id, text, attachmentUrl ? '[Клієнт надіслав фото]' : undefined);
-            await this.sendMessage(senderId, botReply);
-          }
-
-          this.logger.log(`Message saved for lead ${lead.id}`);
-
-          // Create 23h reminder only if AI is active (23h to stay within Meta's 24h messaging window)
           if (aiEnabled) {
-            const reminderTime = new Date();
-            reminderTime.setHours(reminderTime.getHours() + 23);
-            await this.prisma.reminder.create({
-              data: { lead_id: lead.id, time: reminderTime, status: 'pending' }
-            });
+            // processUserMessage returns null if AI decides not to respond (manager active, lead closed, etc.)
+            const botReply = await this.aiAssistant.processUserMessage(lead.id, text || '', attachmentUrl ? '[Клієнт надіслав фото]' : undefined);
+            if (botReply) {
+              await this.sendMessage(senderId, botReply);
+
+              // Create 23h reminder only after successful AI response
+              const reminderTime = new Date();
+              reminderTime.setHours(reminderTime.getHours() + 23);
+              await this.prisma.reminder.create({
+                data: { lead_id: lead.id, time: reminderTime, status: 'pending' }
+              });
+            }
           }
         }
       }

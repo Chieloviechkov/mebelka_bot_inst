@@ -66,10 +66,17 @@ const CustomMenu = () => {
   );
 };
 
+const CustomAppBar = () => (
+  <Box sx={{ display: 'flex', alignItems: 'center', height: 48, px: 1, width: '100%' }}>
+    <Box sx={{ flex: 1 }} />
+  </Box>
+);
+
 export const CustomLayout = (props: any) => (
   <Layout
     {...props}
     menu={CustomMenu}
+    appBar={CustomAppBar}
     sx={{
       '& .RaLayout-content': {
         background: '#0f1117',
