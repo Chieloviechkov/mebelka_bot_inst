@@ -1,4 +1,4 @@
-import { Layout, Menu, useGetIdentity, usePermissions, useSidebarState } from 'react-admin';
+import { AppBar, Layout, Menu, useGetIdentity, usePermissions, useSidebarState } from 'react-admin';
 import { Box, Typography, Avatar, Chip } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
@@ -66,11 +66,7 @@ const CustomMenu = () => {
   );
 };
 
-const CustomAppBar = () => (
-  <Box sx={{ display: 'flex', alignItems: 'center', height: 48, px: 1, width: '100%' }}>
-    <Box sx={{ flex: 1 }} />
-  </Box>
-);
+const CustomAppBar = () => <AppBar toolbar={false} />;
 
 export const CustomLayout = (props: any) => (
   <Layout
