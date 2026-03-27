@@ -12,6 +12,7 @@ import { LeadStatus, FunnelStage, ManagerRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { DEFAULT_AI_PROMPT } from '../ai-assistant/default-prompt';
 
 @UseGuards(JwtAuthGuard)
 @Controller('admin')
@@ -542,7 +543,7 @@ export class AdminController {
       MIN_TIMELINE_DAYS: '7',
       AI_ENABLED: 'false',
       COMPANY_ADDRESSES: '[{"name":"Правий берег","address":"ТЦ \\"Будинок Меблів\\" бульвар Миколи Міхновського, 23","map":"https://maps.app.goo.gl/xZaRPfUSqtc8gDHk6"},{"name":"Лівий берег","address":"ТЦ \\"Ваш Дім\\" вулиця Катерини Гандзюк, 2","map":"https://maps.app.goo.gl/bmX8wx9WZxubZFve8"},{"name":"Офіс","address":"Харківське шоссе 201/203","map":"https://maps.app.goo.gl/6SwyvAQgmQ6HZ2iV8"}]',
-      AI_SYSTEM_PROMPT: '',
+      AI_SYSTEM_PROMPT: DEFAULT_AI_PROMPT,
       STATUS_LABELS: '{}',
     };
     const result: Record<string, string> = { ...defaults };
