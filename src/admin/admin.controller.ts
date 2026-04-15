@@ -610,7 +610,7 @@ export class AdminController {
 
   // ─── ANALYTICS ──────────────────────────────────────
 
-  @Get('leads/count')
+  @Get('analytics/leads-count')
   async getLeadsCount(@Query('period') period?: string) {
     const where = buildPeriodWhere(period);
     const count = await this.prisma.lead.count({ where });

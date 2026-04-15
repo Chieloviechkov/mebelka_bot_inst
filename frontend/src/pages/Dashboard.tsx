@@ -96,7 +96,7 @@ export const Dashboard = () => {
 
   useEffect(() => {
     if (period === 'all') { setPeriodTotal(null); return; }
-    api.get(`/admin/leads/count?period=${period}`)
+    api.get(`/admin/analytics/leads-count?period=${period}`)
       .then(res => setPeriodTotal(res.data.count))
       .catch(() => setPeriodTotal(null));
   }, [period]);
