@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-admin';
 import {
   Box, Card, CardContent, Typography, Avatar,
-  Button, Skeleton, LinearProgress,
+  Button, Skeleton, LinearProgress, ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -74,9 +74,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+type Period = 'day' | 'week' | 'month' | 'all';
+const PERIOD_SUBTITLES: Record<Period, string> = {
+  day: 'за сьогодні',
+  week: 'за тиждень',
+  month: 'за місяць',
+  all: 'за весь час',
+};
+
 export const Dashboard = () => {
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<Period>('all');
+  const [periodTotal, setPeriodTotal] = useState<number | null>(null);
 
   useEffect(() => {
     api.get('/admin/analytics')
@@ -84,7 +94,16 @@ export const Dashboard = () => {
       .catch(() => { setLoading(false); });
   }, []);
 
-  const total = analytics?.totalLeads ?? 0;
+  useEffect(() => {
+    if (period === 'all') { setPeriodTotal(null); return; }
+    api.get(`/admin/leads/count?period=${period}`)
+      .then(res => setPeriodTotal(res.data.count))
+      .catch(() => setPeriodTotal(null));
+  }, [period]);
+
+  const total = period === 'all'
+    ? (analytics?.totalLeads ?? 0)
+    : (periodTotal ?? '—');
   const byStatus = analytics?.byStatus ?? {};
   const perspective = byStatus.Perspektive ?? 0;
   const needsClarification = byStatus.NeedsClarification ?? 0;
@@ -157,7 +176,47 @@ export const Dashboard = () => {
 
       {/* Stat Cards — row 1 */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 2 }}>
-        <StatCard title="Всього лідів" value={total} icon={<PeopleAltIcon />} color="#6366f1" subtitle="за весь час" />
+        <Card>
+          <CardContent>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', fontSize: '0.7rem' }}>
+                  Всього лідів
+                </Typography>
+                <Typography variant="h4" sx={{ fontWeight: 800, color: '#e2e8f0', mt: 0.5, lineHeight: 1 }}>
+                  {total}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#475569', mt: 0.5, display: 'block' }}>
+                  {PERIOD_SUBTITLES[period]}
+                </Typography>
+              </Box>
+              <Box sx={{ width: 44, height: 44, borderRadius: '12px', background: '#6366f120', border: '1px solid #6366f140', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
+                <PeopleAltIcon />
+              </Box>
+            </Box>
+            <ToggleButtonGroup
+              value={period}
+              exclusive
+              size="small"
+              onChange={(_, v) => v && setPeriod(v)}
+              sx={{
+                mt: 1.5, gap: 0.5,
+                '& .MuiToggleButton-root': {
+                  py: 0.3, px: 1.2, fontSize: '0.7rem', textTransform: 'none',
+                  color: '#64748b', border: '1px solid #2d3158', borderRadius: '6px !important',
+                },
+                '& .MuiToggleButton-root.Mui-selected': {
+                  background: 'rgba(99,102,241,0.15)', color: '#818cf8', borderColor: '#6366f1',
+                },
+              }}
+            >
+              <ToggleButton value="day">День</ToggleButton>
+              <ToggleButton value="week">Тиждень</ToggleButton>
+              <ToggleButton value="month">Місяць</ToggleButton>
+              <ToggleButton value="all">Весь час</ToggleButton>
+            </ToggleButtonGroup>
+          </CardContent>
+        </Card>
         <StatCard title="Активних сьогодні" value={activeToday} icon={<TodayIcon />} color="#06b6d4" subtitle={newToday > 0 ? `+ ${newToday} нових лідів` : 'чатів з повідомленнями'} />
         <StatCard title="Непрочитані чати" value={unreadChats} icon={<MarkUnreadChatAltIcon />} color="#ef4444" subtitle="очікують відповіді" />
       </Box>

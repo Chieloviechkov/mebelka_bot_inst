@@ -14,6 +14,17 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { DEFAULT_AI_PROMPT } from '../ai-assistant/default-prompt';
 
+// Будує Prisma-where за періодом (day/week/month/all) для поля createdAt
+function buildPeriodWhere(period?: string): any {
+  if (!period || period === 'all') return {};
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  if (period === 'week') from.setDate(from.getDate() - 6);
+  else if (period === 'month') from.setDate(from.getDate() - 29);
+  // 'day' = сьогодні з 00:00
+  return { createdAt: { gte: from } };
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('admin')
 export class AdminController {
@@ -598,6 +609,13 @@ export class AdminController {
   }
 
   // ─── ANALYTICS ──────────────────────────────────────
+
+  @Get('leads/count')
+  async getLeadsCount(@Query('period') period?: string) {
+    const where = buildPeriodWhere(period);
+    const count = await this.prisma.lead.count({ where });
+    return { count, period: period || 'all' };
+  }
 
   @Get('analytics')
   async getAnalytics() {

@@ -15,6 +15,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ChatsPage } from './pages/ChatsPage';
 import { CustomLayout } from './layout/CustomLayout';
 import { LoginPage } from './pages/LoginPage';
+import { i18nProvider } from './i18n/i18nProvider';
 import { setCustomStatusLabels } from './utils/statusMaps';
 import api from './api';
 
@@ -106,6 +107,7 @@ export default function App() {
     <Admin
       dataProvider={dataProvider}
       authProvider={authProvider}
+      i18nProvider={i18nProvider}
       dashboard={Dashboard}
       theme={darkTheme}
       layout={CustomLayout}

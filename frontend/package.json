@@ -23,6 +23,7 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "ra-data-simple-rest": "^5.14.4",
+    "ra-i18n-polyglot": "^5.14.5",
     "react": "^19.2.4",
     "react-admin": "^5.14.4",
     "react-dom": "^19.2.4",
