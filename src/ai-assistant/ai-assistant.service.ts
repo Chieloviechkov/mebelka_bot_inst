@@ -52,6 +52,12 @@ export class AiAssistantService {
     const lead = await this.prisma.lead.findUnique({ where: { id: leadId } });
     if (!lead) return false;
 
+    // Per-chat AI toggle
+    if (lead.ai_enabled === false) {
+      this.logger.log(`Skipping AI for lead ${leadId}: ai_enabled=false`);
+      return false;
+    }
+
     // Don't respond to closed/rejected leads
     if (lead.status === 'Zakryto' || lead.status === 'Vidhyleno') {
       this.logger.log(`Skipping AI for lead ${leadId}: status is ${lead.status}`);
@@ -109,12 +115,19 @@ export class AiAssistantService {
         }
       }
 
-      // Use custom prompt from settings if available
-      const customPrompt = await this.prisma.setting.findUnique({ where: { key: 'AI_SYSTEM_PROMPT' } });
-      const systemPrompt = customPrompt?.value?.trim() || DEFAULT_AI_PROMPT;
+      // Збираємо системний промпт + few-shot приклади з налаштувань
+      const settingsRows = await this.prisma.setting.findMany({
+        where: { key: { in: ['AI_SYSTEM_PROMPT', 'AI_ASSERTIVENESS', 'AI_STYLE', 'AI_LANGUAGE', 'AI_OBJECTIONS', 'AI_TRAINING_EXAMPLES'] } },
+      });
+      const cfg: Record<string, string> = {};
+      for (const r of settingsRows) cfg[r.key] = r.value;
+
+      const systemPrompt = this.composeSystemPrompt(cfg);
+      const fewShot = this.parseTrainingExamples(cfg.AI_TRAINING_EXAMPLES);
 
       const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
         { role: 'system', content: systemPrompt },
+        ...fewShot,
         ...conversationHistory,
       ];
 
@@ -162,6 +175,7 @@ export class AiAssistantService {
       const botMessage = await this.prisma.message.create({
         data: { text: botReply, sender_id: 'bot', role: 'bot', lead_id: leadId },
       });
+      await this.prisma.lead.update({ where: { id: leadId }, data: { updatedAt: new Date() } });
 
       this.chatGateway.emitNewMessage(leadId, botMessage);
       return botReply;
@@ -169,6 +183,74 @@ export class AiAssistantService {
       this.logger.error(`Error in AI for lead ${leadId}:`, error);
       // Don't send error messages to customers — just log and return null
       return null;
+    }
+  }
+
+  private composeSystemPrompt(cfg: Record<string, string>): string {
+    const base = cfg.AI_SYSTEM_PROMPT?.trim() || DEFAULT_AI_PROMPT;
+    const parts: string[] = [base];
+
+    const assertiveness = (cfg.AI_ASSERTIVENESS || '').toLowerCase();
+    if (assertiveness === 'low') {
+      parts.push('\nТОН: М\'який, ненав\'язливий. НЕ підштовхуй клієнта до рішення, давай йому час подумати. Не задавай уточнюючих питань підряд.');
+    } else if (assertiveness === 'high') {
+      parts.push('\nТОН: Активний, проактивний. Веди клієнта до закриття угоди — пропонуй наступний крок (зустріч, замір, передачу менеджеру) щойно зібрав мінімум інформації.');
+    } else if (assertiveness === 'medium') {
+      parts.push('\nТОН: Збалансований. Підтримуй темп розмови, але не тисни.');
+    }
+
+    const style = (cfg.AI_STYLE || '').toLowerCase();
+    if (style === 'formal') {
+      parts.push('\nСТИЛЬ: Офіційний. Звертайся на "Ви", без жаргону та емодзі. Структурована мова.');
+    } else if (style === 'casual') {
+      parts.push('\nСТИЛЬ: Невимушений. Можна "Ви" або "ти" за контекстом, легкі емодзі доречні (1-2 на повідомлення максимум).');
+    } else if (style === 'friendly') {
+      parts.push('\nСТИЛЬ: Дружній. "Ви", тепло, людяно. Емодзі рідко (тільки 📲 / ✅).');
+    }
+
+    const lang = (cfg.AI_LANGUAGE || '').toLowerCase();
+    if (lang === 'ru') {
+      parts.push('\nМОВА ВІДПОВІДЕЙ: Російська. Усі повідомлення клієнту — російською мовою, незалежно від мови запиту.');
+    } else if (lang === 'en') {
+      parts.push('\nLANGUAGE: English. Reply to the customer only in English regardless of input language.');
+    } else if (lang === 'auto') {
+      parts.push('\nМОВА: Відповідай тією мовою, якою пише клієнт (українська/російська).');
+    }
+    // default = укр (вже у базовому промпті)
+
+    const objections = this.parseObjections(cfg.AI_OBJECTIONS);
+    if (objections.length) {
+      const lines = objections.map((o, i) => `${i + 1}. Заперечення: "${o.objection}"\n   Відповідь: ${o.response}`).join('\n');
+      parts.push(`\nРОБОТА З ЗАПЕРЕЧЕННЯМИ:\nКоли клієнт висловлює одне з наведених нижче заперечень — використовуй вказану відповідь як основу (можеш переформулювати під контекст, але зберігай суть):\n${lines}`);
+    }
+
+    return parts.join('\n');
+  }
+
+  private parseObjections(raw?: string): Array<{ objection: string; response: string }> {
+    if (!raw?.trim()) return [];
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(x => x?.objection && x?.response);
+    } catch {
+      return [];
+    }
+  }
+
+  private parseTrainingExamples(raw?: string): OpenAI.Chat.ChatCompletionMessageParam[] {
+    if (!raw?.trim()) return [];
+    try {
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return [];
+      const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+      for (const ex of arr) {
+        if (ex?.user) result.push({ role: 'user', content: String(ex.user) });
+        if (ex?.assistant) result.push({ role: 'assistant', content: String(ex.assistant) });
+      }
+      return result;
+    } catch {
+      return [];
     }
   }
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Box, Typography, Card, CardContent, TextField, Button,
   Switch, FormControlLabel, Skeleton, Alert, Divider, IconButton,
+  ToggleButton, ToggleButtonGroup,
 } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -12,6 +13,9 @@ import PsychologyIcon from '@mui/icons-material/Psychology';
 import LabelIcon from '@mui/icons-material/Label';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
+import GavelIcon from '@mui/icons-material/Gavel';
 import { usePermissions, useRedirect } from 'react-admin';
 import api from '../api';
 import { ALL_STATUSES, setCustomStatusLabels } from '../utils/statusMaps';
@@ -20,6 +24,16 @@ interface CompanyAddress {
   name: string;
   address: string;
   map: string;
+}
+
+interface ObjectionPair {
+  objection: string;
+  response: string;
+}
+
+interface TrainingExample {
+  user: string;
+  assistant: string;
 }
 
 const inputSx = {
@@ -42,6 +56,9 @@ export const SettingsPage = () => {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [addresses, setAddresses] = useState<CompanyAddress[]>([]);
   const [statusLabels, setStatusLabels] = useState<Record<string, string>>({});
+  const [objections, setObjections] = useState<ObjectionPair[]>([]);
+  const [examples, setExamples] = useState<TrainingExample[]>([]);
+  const [importError, setImportError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -63,6 +80,14 @@ export const SettingsPage = () => {
       } catch {
         setStatusLabels({});
       }
+      try {
+        const parsed = JSON.parse(res.data.AI_OBJECTIONS || '[]');
+        setObjections(Array.isArray(parsed) ? parsed : []);
+      } catch { setObjections([]); }
+      try {
+        const parsed = JSON.parse(res.data.AI_TRAINING_EXAMPLES || '[]');
+        setExamples(Array.isArray(parsed) ? parsed : []);
+      } catch { setExamples([]); }
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -104,10 +129,14 @@ export const SettingsPage = () => {
       for (const [key, val] of Object.entries(statusLabels)) {
         if (val && val.trim()) cleanedLabels[key] = val.trim();
       }
+      const cleanedObjections = objections.filter(o => o.objection?.trim() && o.response?.trim());
+      const cleanedExamples = examples.filter(e => e.user?.trim() && e.assistant?.trim());
       const payload = {
         ...settings,
         COMPANY_ADDRESSES: JSON.stringify(addresses),
         STATUS_LABELS: JSON.stringify(cleanedLabels),
+        AI_OBJECTIONS: JSON.stringify(cleanedObjections),
+        AI_TRAINING_EXAMPLES: JSON.stringify(cleanedExamples),
       };
       await api.patch('/admin/settings', payload);
       // Update runtime status labels
@@ -179,7 +208,11 @@ export const SettingsPage = () => {
               control={
                 <Switch
                   checked={aiEnabled}
-                  onChange={(e) => handleChange('AI_ENABLED', e.target.checked ? 'true' : 'false')}
+                  onChange={async (e) => {
+                    const val = e.target.checked ? 'true' : 'false';
+                    handleChange('AI_ENABLED', val);
+                    try { await api.patch('/admin/settings', { AI_ENABLED: val }); } catch { /* */ }
+                  }}
                   sx={{
                     '& .MuiSwitch-switchBase.Mui-checked': { color: '#22c55e' },
                     '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#22c55e' },
@@ -224,6 +257,206 @@ export const SettingsPage = () => {
               },
             }}
           />
+        </CardContent>
+      </Card>
+
+      {/* AI Behavior */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <TuneIcon sx={{ color: '#6366f1' }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+              Поведінка AI
+            </Typography>
+          </Box>
+          <Typography variant="body2" sx={{ color: '#475569', fontSize: '0.8rem', mb: 2 }}>
+            Модифікатори поверх системного промпту. Застосовуються до кожної відповіді AI.
+          </Typography>
+
+          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, mb: 0.5, display: 'block' }}>
+            Напористість
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            value={settings.AI_ASSERTIVENESS || 'medium'}
+            onChange={(_, v) => v && handleChange('AI_ASSERTIVENESS', v)}
+            size="small"
+            sx={{ mb: 2.5, '& .MuiToggleButton-root': { color: '#94a3b8', borderColor: '#2d3158', textTransform: 'none', '&.Mui-selected': { background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderColor: '#6366f1' } } }}
+          >
+            <ToggleButton value="low">М'яка</ToggleButton>
+            <ToggleButton value="medium">Середня</ToggleButton>
+            <ToggleButton value="high">Активна</ToggleButton>
+          </ToggleButtonGroup>
+
+          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, mb: 0.5, display: 'block' }}>
+            Стиль спілкування
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            value={settings.AI_STYLE || 'friendly'}
+            onChange={(_, v) => v && handleChange('AI_STYLE', v)}
+            size="small"
+            sx={{ mb: 2.5, '& .MuiToggleButton-root': { color: '#94a3b8', borderColor: '#2d3158', textTransform: 'none', '&.Mui-selected': { background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderColor: '#6366f1' } } }}
+          >
+            <ToggleButton value="formal">Офіційний</ToggleButton>
+            <ToggleButton value="friendly">Дружній</ToggleButton>
+            <ToggleButton value="casual">Невимушений</ToggleButton>
+          </ToggleButtonGroup>
+
+          <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, mb: 0.5, display: 'block' }}>
+            Мова відповідей
+          </Typography>
+          <ToggleButtonGroup
+            exclusive
+            value={settings.AI_LANGUAGE || 'uk'}
+            onChange={(_, v) => v && handleChange('AI_LANGUAGE', v)}
+            size="small"
+            sx={{ '& .MuiToggleButton-root': { color: '#94a3b8', borderColor: '#2d3158', textTransform: 'none', '&.Mui-selected': { background: 'rgba(99,102,241,0.2)', color: '#a5b4fc', borderColor: '#6366f1' } } }}
+          >
+            <ToggleButton value="uk">Українська</ToggleButton>
+            <ToggleButton value="ru">Російська</ToggleButton>
+            <ToggleButton value="en">English</ToggleButton>
+            <ToggleButton value="auto">Авто (як клієнт)</ToggleButton>
+          </ToggleButtonGroup>
+        </CardContent>
+      </Card>
+
+      {/* Objections */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <GavelIcon sx={{ color: '#6366f1' }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+              Робота з запереченнями
+            </Typography>
+          </Box>
+          <Typography variant="body2" sx={{ color: '#475569', fontSize: '0.8rem', mb: 2 }}>
+            Типові заперечення клієнтів і готові відповіді. AI використовує їх як основу при відповідних ситуаціях.
+          </Typography>
+
+          {objections.map((o, idx) => (
+            <Box key={idx} sx={{ p: 2, mb: 2, borderRadius: 2, background: '#12151f', border: '1px solid #2d3158' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>Пара #{idx + 1}</Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => { setObjections(prev => prev.filter((_, i) => i !== idx)); setSaved(false); }}
+                  sx={{ color: '#ef4444' }}
+                >
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Box>
+              <TextField
+                fullWidth size="small" label="Заперечення клієнта"
+                value={o.objection}
+                onChange={(e) => { setObjections(prev => { const u = [...prev]; u[idx] = { ...u[idx], objection: e.target.value }; return u; }); setSaved(false); }}
+                placeholder="Дорого / Подумаю / У конкурентів дешевше"
+                sx={{ ...inputSx, mb: 1.5 }}
+              />
+              <TextField
+                fullWidth size="small" multiline minRows={2} label="Відповідь AI"
+                value={o.response}
+                onChange={(e) => { setObjections(prev => { const u = [...prev]; u[idx] = { ...u[idx], response: e.target.value }; return u; }); setSaved(false); }}
+                placeholder="Розумію, ціна важлива. Менеджер підбере оптимальний варіант з врахуванням бюджету..."
+                sx={inputSx}
+              />
+            </Box>
+          ))}
+
+          <Button
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => { setObjections(prev => [...prev, { objection: '', response: '' }]); setSaved(false); }}
+            sx={{ color: '#818cf8', fontWeight: 600, '&:hover': { background: 'rgba(99,102,241,0.1)' } }}
+          >
+            Додати заперечення
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Training examples */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <ChatBubbleOutlineIcon sx={{ color: '#6366f1' }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+              Приклади діалогів (навчання AI)
+            </Typography>
+          </Box>
+          <Typography variant="body2" sx={{ color: '#475569', fontSize: '0.8rem', mb: 2 }}>
+            Зразкові пари "клієнт → ідеальна відповідь". AI використовує їх як приклад тону і манери (few-shot). Достатньо 3–10 пар.
+          </Typography>
+
+          <Button
+            component="label"
+            startIcon={<UploadFileIcon />}
+            sx={{ color: '#818cf8', fontWeight: 600, mb: 2, '&:hover': { background: 'rgba(99,102,241,0.1)' } }}
+          >
+            Імпорт з JSON
+            <input
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setImportError(null);
+                try {
+                  const text = await f.text();
+                  const parsed = JSON.parse(text);
+                  if (!Array.isArray(parsed)) throw new Error('JSON має бути масивом');
+                  const valid = parsed.filter((x: any) => x?.user && x?.assistant)
+                    .map((x: any) => ({ user: String(x.user), assistant: String(x.assistant) }));
+                  if (!valid.length) throw new Error('Жодної валідної пари {user, assistant}');
+                  setExamples(prev => [...prev, ...valid]);
+                  setSaved(false);
+                } catch (err: any) {
+                  setImportError(err.message || 'Помилка парсингу');
+                }
+                e.target.value = '';
+              }}
+            />
+          </Button>
+
+          {importError && (
+            <Alert severity="error" sx={{ mb: 2, background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
+              {importError}
+            </Alert>
+          )}
+
+          {examples.map((ex, idx) => (
+            <Box key={idx} sx={{ p: 2, mb: 2, borderRadius: 2, background: '#12151f', border: '1px solid #2d3158' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>Діалог #{idx + 1}</Typography>
+                <IconButton
+                  size="small"
+                  onClick={() => { setExamples(prev => prev.filter((_, i) => i !== idx)); setSaved(false); }}
+                  sx={{ color: '#ef4444' }}
+                >
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Box>
+              <TextField
+                fullWidth size="small" multiline minRows={2} label="Клієнт"
+                value={ex.user}
+                onChange={(e) => { setExamples(prev => { const u = [...prev]; u[idx] = { ...u[idx], user: e.target.value }; return u; }); setSaved(false); }}
+                sx={{ ...inputSx, mb: 1.5 }}
+              />
+              <TextField
+                fullWidth size="small" multiline minRows={2} label="Ідеальна відповідь AI"
+                value={ex.assistant}
+                onChange={(e) => { setExamples(prev => { const u = [...prev]; u[idx] = { ...u[idx], assistant: e.target.value }; return u; }); setSaved(false); }}
+                sx={inputSx}
+              />
+            </Box>
+          ))}
+
+          <Button
+            startIcon={<AddCircleOutlineIcon />}
+            onClick={() => { setExamples(prev => [...prev, { user: '', assistant: '' }]); setSaved(false); }}
+            sx={{ color: '#818cf8', fontWeight: 600, '&:hover': { background: 'rgba(99,102,241,0.1)' } }}
+          >
+            Додати діалог вручну
+          </Button>
         </CardContent>
       </Card>
 

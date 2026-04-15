@@ -49,6 +49,7 @@ model Lead {
   status             LeadStatus   @default(Novyi)
   has_application    Boolean      @default(false)
   status_history     Json?
+  ai_enabled         Boolean      @default(true)
 
   messages       Message[]
   notes          Note[]

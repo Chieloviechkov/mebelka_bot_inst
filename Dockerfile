@@ -28,4 +28,4 @@ COPY --from=builder /app/prisma ./prisma
 
 EXPOSE ${PORT:-3000}
 
-CMD ["node", "dist/main"]
+CMD npx prisma migrate deploy && node dist/main

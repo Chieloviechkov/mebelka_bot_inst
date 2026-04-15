@@ -156,6 +156,20 @@ export class AdminController {
     return this.prisma.lead.update({ where: { id }, data });
   }
 
+  @Patch('leads/:id/ai')
+  async toggleLeadAi(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('ai_enabled') aiEnabled: boolean,
+  ) {
+    const lead = await this.prisma.lead.findUnique({ where: { id } });
+    if (!lead) throw new BadRequestException('Лід не знайдено');
+    return this.prisma.lead.update({
+      where: { id },
+      data: { ai_enabled: !!aiEnabled },
+      select: { id: true, ai_enabled: true },
+    });
+  }
+
   @Patch('leads/:id/status')
   async updateStatus(
     @Param('id', ParseIntPipe) id: number,
@@ -295,6 +309,8 @@ export class AdminController {
     const message = await this.prisma.message.create({
       data: { text, sender_id: 'manager', role: 'manager', lead_id: id, delivered: result.ok, delivery_error: result.error || null },
     });
+    // Підняти чат у списку (нові зверху)
+    await this.prisma.lead.update({ where: { id }, data: { updatedAt: new Date() } });
 
     // Track funnel: first manager message = KontaktMenedzhera
     const hasManagerContact = await this.prisma.history.findFirst({
@@ -383,6 +399,7 @@ export class AdminController {
         delivery_error: result.error || null,
       },
     });
+    await this.prisma.lead.update({ where: { id }, data: { updatedAt: new Date() } });
 
     // Track funnel: first manager message = KontaktMenedzhera
     const hasManagerContact = await this.prisma.history.findFirst({
@@ -544,6 +561,11 @@ export class AdminController {
       AI_ENABLED: 'false',
       COMPANY_ADDRESSES: '[{"name":"Правий берег","address":"ТЦ \\"Будинок Меблів\\" бульвар Миколи Міхновського, 23","map":"https://maps.app.goo.gl/xZaRPfUSqtc8gDHk6"},{"name":"Лівий берег","address":"ТЦ \\"Ваш Дім\\" вулиця Катерини Гандзюк, 2","map":"https://maps.app.goo.gl/bmX8wx9WZxubZFve8"},{"name":"Офіс","address":"Харківське шоссе 201/203","map":"https://maps.app.goo.gl/6SwyvAQgmQ6HZ2iV8"}]',
       AI_SYSTEM_PROMPT: DEFAULT_AI_PROMPT,
+      AI_ASSERTIVENESS: 'medium',
+      AI_STYLE: 'friendly',
+      AI_LANGUAGE: 'uk',
+      AI_OBJECTIONS: '[]',
+      AI_TRAINING_EXAMPLES: '[]',
       STATUS_LABELS: '{}',
     };
     const result: Record<string, string> = { ...defaults };
@@ -558,6 +580,7 @@ export class AdminController {
     const allowed = [
       'MIN_BUDGET_UAH', 'MIN_PRICE_PER_SQM', 'MAX_PRICE_PER_SQM',
       'MIN_TIMELINE_DAYS', 'AI_ENABLED', 'COMPANY_ADDRESSES', 'AI_SYSTEM_PROMPT',
+      'AI_ASSERTIVENESS', 'AI_STYLE', 'AI_LANGUAGE', 'AI_OBJECTIONS', 'AI_TRAINING_EXAMPLES',
       'STATUS_LABELS',
     ];
     const updated: Record<string, string> = {};

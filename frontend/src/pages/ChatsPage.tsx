@@ -17,6 +17,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import ForumIcon from '@mui/icons-material/Forum';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import api from '../api';
 import { getSocket } from '../socket';
 import { getStatusConfig } from '../utils/statusMaps';
@@ -367,6 +368,8 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState('');
   const [assignedManagers, setAssignedManagers] = useState<any[]>([]);
+  const [aiEnabled, setAiEnabled] = useState<boolean>(lead.ai_enabled !== false);
+  const [togglingAi, setTogglingAi] = useState(false);
   const [attachmentPreview, setAttachmentPreview] = useState<{ file: File; dataUrl: string } | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -521,6 +524,34 @@ const InlineChat = ({ lead, onBack }: { lead: any; onBack: () => void }) => {
               {lead.phone && ` · ${lead.phone}`}
             </Typography>
           </Box>
+          <Tooltip title={aiEnabled ? 'AI увімкнено для цього чату — клікни щоб вимкнути' : 'AI вимкнено — клікни щоб увімкнути'}>
+            <span>
+              <IconButton
+                onClick={async () => {
+                  if (togglingAi) return;
+                  setTogglingAi(true);
+                  const next = !aiEnabled;
+                  try {
+                    await api.patch(`${API}/leads/${lead.id}/ai`, { ai_enabled: next });
+                    setAiEnabled(next);
+                  } catch { /* ignore */ }
+                  setTogglingAi(false);
+                }}
+                disabled={togglingAi}
+                sx={{
+                  color: aiEnabled ? '#818cf8' : '#475569',
+                  background: aiEnabled ? 'rgba(99,102,241,0.12)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: aiEnabled ? 'rgba(99,102,241,0.3)' : '#2d3158',
+                  borderRadius: '8px',
+                  width: 36, height: 36,
+                  '&:hover': { background: aiEnabled ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.05)' },
+                }}
+              >
+                <SmartToyIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
           <ManagerAssignPopover leadId={lead.id} assignedManagers={assignedManagers} onUpdate={setAssignedManagers} />
           <Tooltip title="Відкрити картку ліда">
             <IconButton onClick={() => { window.location.hash = `#/leads/${lead.id}/show`; }} sx={{ color: '#64748b' }}>
